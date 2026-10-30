@@ -1,0 +1,27 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "steamadvantage:block/drillbit"
+    },
+    "facing=east": {
+      "model": "steamadvantage:block/drillbit",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "steamadvantage:block/drillbit",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "steamadvantage:block/drillbit",
+      "y": 270
+    },
+    "facing=up": {
+      "model": "steamadvantage:block/drillbit",
+      "x": 270
+    },
+    "facing=down": {
+      "model": "steamadvantage:block/drillbit",
+      "x": 90
+    }
+  }
+}

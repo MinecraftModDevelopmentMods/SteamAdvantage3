@@ -1,0 +1,11 @@
+{
+  "parent": "steamadvantage:block/steam_machine_base",
+  "textures": {
+    "front": "steamadvantage:block/steam_elevator_side",
+    "top": "steamadvantage:block/platform_top",
+    "bottom": "steamadvantage:block/materials/bolted_iron",
+    "back": "steamadvantage:block/steam_elevator_side",
+    "side": "steamadvantage:block/steam_elevator_side",
+    "metal": "steamadvantage:block/materials/iron"
+  }
+}

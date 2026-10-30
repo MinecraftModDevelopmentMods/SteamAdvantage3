@@ -1,0 +1,7 @@
+{
+  "factory": "steamadvantage:musket",
+  "template": {
+    "max_stack_size": 1,
+    "max_damage": 250
+  }
+}

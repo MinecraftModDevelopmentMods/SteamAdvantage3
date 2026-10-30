@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " Y ",
+    "gXg",
+    "pmp"
+  ],
+  "key": {
+    "g": {
+      "item": "steamadvantage:steam_governor"
+    },
+    "X": {
+      "item": "minecraft:bucket"
+    },
+    "p": {
+      "tag": "c:plates/iron"
+    },
+    "m": {
+      "item": "poweradvantage:steel_frame"
+    },
+    "Y": {
+      "item": "minecraft:bucket"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_still",
+    "count": 1
+  }
+}

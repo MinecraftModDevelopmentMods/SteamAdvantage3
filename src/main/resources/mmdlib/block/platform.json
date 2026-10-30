@@ -1,0 +1,15 @@
+{
+  "factory": "steamadvantage:platform",
+  "template": {
+    "has_item": true,
+    "properties": {
+      "hardness": 3.5,
+      "blast_resistance": 6,
+      "requires_correct_tool": true
+    },
+    "tags": [
+      "minecraft:mineable/pickaxe",
+      "minecraft:needs_iron_tool"
+    ]
+  }
+}

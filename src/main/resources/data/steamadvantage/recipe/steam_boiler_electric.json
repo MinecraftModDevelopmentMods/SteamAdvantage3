@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " Y ",
+    "gXg",
+    "pmp"
+  ],
+  "key": {
+    "g": {
+      "item": "steamadvantage:steam_governor"
+    },
+    "X": {
+      "tag": "c:wires"
+    },
+    "p": {
+      "tag": "c:plates/iron"
+    },
+    "m": {
+      "item": "poweradvantage:steel_frame"
+    },
+    "Y": {
+      "item": "minecraft:bucket"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_boiler_electric",
+    "count": 1
+  }
+}

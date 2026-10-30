@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<screen xmlns="https://moddev.zone/mmdlib/screen" title="block.steamadvantage.steam_still" block-entity="zone.moddev.mc.SteamAdvantage.machines.SteamMachine">
+  <vbox padding="7" spacing="6">
+    <hbox spacing="6" align="center">
+      <group label="screen.steamadvantage.steam" padding="4">
+        <gauge id="steam" orientation="vertical" length="64" value="#getSteamTank" max="#getSteamCapacity" tooltip="screen.steamadvantage.steam_amount" />
+      </group>
+      <group label="screen.steamadvantage.input" padding="4">
+        <gauge id="water" orientation="vertical" length="64" value="#getWaterTank" max="#getWaterCapacity" tooltip="screen.steamadvantage.water_amount" />
+      </group>
+      <group label="screen.steamadvantage.product" padding="4">
+        <gauge id="product" orientation="vertical" length="64" value="#getProductTank" max="#getProductCapacity" tooltip="screen.steamadvantage.product_amount" />
+      </group>
+    </hbox>
+    <progress value="#getProgress" max="#getProgressMax" tooltip="screen.steamadvantage.progress_amount" />
+  </vbox>
+</screen>

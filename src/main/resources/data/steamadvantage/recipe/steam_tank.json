@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "xgx",
+    "xpx",
+    "xxx"
+  ],
+  "key": {
+    "x": {
+      "tag": "c:plates/copper"
+    },
+    "g": {
+      "item": "steamadvantage:steam_governor"
+    },
+    "p": {
+      "item": "steamadvantage:steam_pipe"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_tank",
+    "count": 1
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "parent": "steamadvantage:item/musket_unloaded",
+  "overrides": [
+    {
+      "predicate": {
+        "steamadvantage:loaded": 0,
+        "steamadvantage:loading": 0
+      },
+      "model": "steamadvantage:item/musket_unloaded"
+    },
+    {
+      "predicate": {
+        "steamadvantage:loaded": 0,
+        "steamadvantage:loading": 1
+      },
+      "model": "steamadvantage:item/musket_loading"
+    },
+    {
+      "predicate": {
+        "steamadvantage:loaded": 1
+      },
+      "model": "steamadvantage:item/musket_loaded"
+    }
+  ]
+}

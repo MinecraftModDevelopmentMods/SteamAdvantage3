@@ -1,0 +1,10 @@
+{
+  "module": "steamadvantage:machine",
+  "block_entity_data": {
+    "kind": "steam_tank",
+    "steam_capacity": 2345678,
+    "inventory_size": 12,
+    "energy_capacity": 0,
+    "energy_transfer": 0
+  }
+}

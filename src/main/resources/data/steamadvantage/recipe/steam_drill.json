@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "gXg",
+    "pmp"
+  ],
+  "key": {
+    "g": {
+      "item": "steamadvantage:steam_governor"
+    },
+    "X": {
+      "item": "steamadvantage:steam_drill_bit"
+    },
+    "p": {
+      "tag": "c:plates/iron"
+    },
+    "m": {
+      "item": "poweradvantage:steel_frame"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_drill",
+    "count": 1
+  }
+}

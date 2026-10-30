@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "xxx",
+    "   ",
+    "xxx"
+  ],
+  "key": {
+    "x": {
+      "tag": "c:ingots/brass"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_pipe",
+    "count": 6
+  }
+}

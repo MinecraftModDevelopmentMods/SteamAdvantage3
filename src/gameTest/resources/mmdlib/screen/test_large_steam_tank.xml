@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<screen xmlns="https://moddev.zone/mmdlib/screen" title="block.steamadvantage.steam_tank" block-entity="zone.moddev.mc.SteamAdvantage.machines.SteamMachine">
+  <vbox padding="7" spacing="6">
+    <label text="block.steamadvantage.steam_tank" />
+    <hbox spacing="6" align="center">
+      <group label="screen.steamadvantage.steam" padding="4">
+        <gauge id="steam" orientation="vertical" length="64" value="#getSteamTank" max="#getSteamCapacity" tooltip="screen.steamadvantage.steam_amount" />
+      </group>
+    </hbox>
+  </vbox>
+</screen>

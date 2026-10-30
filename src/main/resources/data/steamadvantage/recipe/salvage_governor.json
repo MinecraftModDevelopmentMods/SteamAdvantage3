@@ -1,0 +1,18 @@
+{
+  "type": "mmdlib:crushing",
+  "ingredient": {
+    "item": "steamadvantage:steam_governor"
+  },
+  "result": {
+    "id": "mmdlib:iron_gear",
+    "count": 2
+  },
+  "neoforge:conditions": [
+    {
+      "type": "steamadvantage:recipe_mode",
+      "modes": [
+        "APOCALYPTIC"
+      ]
+    }
+  ]
+}

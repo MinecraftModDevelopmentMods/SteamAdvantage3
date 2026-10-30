@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " g ",
+    " i ",
+    "did"
+  ],
+  "key": {
+    "g": {
+      "tag": "c:gears"
+    },
+    "i": {
+      "tag": "c:ingots/steel"
+    },
+    "d": {
+      "item": "minecraft:diamond"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_drill_bit",
+    "count": 1
+  }
+}

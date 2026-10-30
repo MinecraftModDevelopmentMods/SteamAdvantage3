@@ -1,0 +1,22 @@
+{
+  "description": {
+    "translate": "enchantment.steamadvantage.recoil"
+  },
+  "supported_items": "#steamadvantage:muskets",
+  "primary_items": "#steamadvantage:muskets",
+  "weight": 2,
+  "max_level": 5,
+  "min_cost": {
+    "base": 10,
+    "per_level_above_first": 10
+  },
+  "max_cost": {
+    "base": 40,
+    "per_level_above_first": 10
+  },
+  "anvil_cost": 4,
+  "slots": [
+    "mainhand"
+  ],
+  "effects": {}
+}

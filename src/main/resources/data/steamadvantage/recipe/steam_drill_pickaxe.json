@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "gXg",
+    "pmp"
+  ],
+  "key": {
+    "g": {
+      "item": "steamadvantage:steam_governor"
+    },
+    "X": {
+      "item": "minecraft:diamond_pickaxe"
+    },
+    "p": {
+      "tag": "c:plates/iron"
+    },
+    "m": {
+      "item": "poweradvantage:steel_frame"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_drill",
+    "count": 1
+  },
+  "neoforge:conditions": [
+    {
+      "type": "steamadvantage:recipe_mode",
+      "modes": [
+        "NORMAL"
+      ]
+    }
+  ]
+}

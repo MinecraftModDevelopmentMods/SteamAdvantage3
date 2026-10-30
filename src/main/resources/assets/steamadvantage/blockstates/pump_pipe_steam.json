@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "steamadvantage:block/pump_pipe_steam"
+    }
+  }
+}

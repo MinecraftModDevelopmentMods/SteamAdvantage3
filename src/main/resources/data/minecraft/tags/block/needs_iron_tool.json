@@ -1,0 +1,22 @@
+{
+  "replace": false,
+  "values": [
+    "steamadvantage:steam_boiler_coal",
+    "steamadvantage:steam_boiler_electric",
+    "steamadvantage:steam_boiler_geothermal",
+    "steamadvantage:steam_boiler_oil",
+    "steamadvantage:steam_tank",
+    "steamadvantage:steam_furnace",
+    "steamadvantage:steam_crusher",
+    "steamadvantage:steam_drill",
+    "steamadvantage:steam_elevator",
+    "steamadvantage:steam_still",
+    "steamadvantage:steam_pump",
+    "steamadvantage:steam_switch",
+    "steamadvantage:steam_pipe",
+    "steamadvantage:steam_track",
+    "steamadvantage:platform",
+    "steamadvantage:drillbit",
+    "steamadvantage:pump_pipe_steam"
+  ]
+}

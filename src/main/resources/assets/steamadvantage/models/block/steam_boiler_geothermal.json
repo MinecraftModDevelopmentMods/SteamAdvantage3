@@ -1,0 +1,11 @@
+{
+  "parent": "steamadvantage:block/steam_machine_base",
+  "textures": {
+    "front": "steamadvantage:block/geothermal_boiler_side",
+    "top": "steamadvantage:block/geothermal_boiler_top",
+    "bottom": "steamadvantage:block/materials/bolted_iron",
+    "back": "steamadvantage:block/geothermal_boiler_side",
+    "side": "steamadvantage:block/geothermal_boiler_side",
+    "metal": "steamadvantage:block/materials/bolted_iron"
+  }
+}

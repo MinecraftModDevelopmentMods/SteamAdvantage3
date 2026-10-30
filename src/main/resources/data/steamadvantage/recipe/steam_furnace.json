@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "gXg",
+    "pmp"
+  ],
+  "key": {
+    "g": {
+      "item": "steamadvantage:steam_governor"
+    },
+    "X": {
+      "item": "minecraft:furnace"
+    },
+    "p": {
+      "tag": "c:plates/iron"
+    },
+    "m": {
+      "item": "poweradvantage:steel_frame"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_furnace",
+    "count": 1
+  }
+}

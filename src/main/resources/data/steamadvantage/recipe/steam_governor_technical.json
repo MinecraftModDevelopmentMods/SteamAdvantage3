@@ -1,0 +1,35 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " t ",
+    "srs",
+    "btb"
+  ],
+  "key": {
+    "t": {
+      "tag": "c:gears"
+    },
+    "s": {
+      "tag": "c:rods"
+    },
+    "r": {
+      "tag": "c:rods"
+    },
+    "b": {
+      "tag": "c:ingots/brass"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_governor",
+    "count": 1
+  },
+  "neoforge:conditions": [
+    {
+      "type": "steamadvantage:recipe_mode",
+      "modes": [
+        "TECH_PROGRESSION",
+        "APOCALYPTIC"
+      ]
+    }
+  ]
+}

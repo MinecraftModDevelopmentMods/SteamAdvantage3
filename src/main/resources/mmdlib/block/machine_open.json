@@ -1,0 +1,28 @@
+{
+  "factory": "steamadvantage:machine",
+  "template": {
+    "has_item": true,
+    "properties": {
+      "hardness": 3.5,
+      "blast_resistance": 6,
+      "requires_correct_tool": true,
+      "occlusion": false
+    },
+    "tags": [
+      "minecraft:mineable/pickaxe",
+      "minecraft:needs_iron_tool"
+    ],
+    "events": {
+      "block-right-click": "steamadvantage:use_machine"
+    }
+  },
+  "part": {
+    "block_entity": {
+      "factory": "steamadvantage:machine",
+      "factory_data": {
+        "kind": "steam_tank",
+        "steam_capacity": 1000000
+      }
+    }
+  }
+}

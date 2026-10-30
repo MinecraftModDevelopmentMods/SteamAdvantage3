@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "fss",
+    "w  "
+  ],
+  "key": {
+    "f": {
+      "item": "minecraft:flint_and_steel"
+    },
+    "s": {
+      "tag": "c:ingots/steel"
+    },
+    "w": {
+      "tag": "minecraft:planks"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:musket",
+    "count": 1
+  },
+  "neoforge:conditions": [
+    {
+      "type": "steamadvantage:recipe_mode",
+      "modes": [
+        "NORMAL",
+        "TECH_PROGRESSION"
+      ]
+    }
+  ]
+}

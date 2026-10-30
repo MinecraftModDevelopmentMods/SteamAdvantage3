@@ -1,0 +1,74 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.gradle.userdev' version '7.1.38'
+}
+version = "${minecraft_version}-${mod_version}"
+group = 'zone.moddev.mc.SteamAdvantage'
+base.archivesName = 'SteamAdvantage'
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+runs {
+    configureEach {
+        workingDirectory project.layout.projectDirectory.dir('run')
+        modSource project.sourceSets.main
+    }
+    client {}
+    server { argument '--nogui' }
+}
+dependencies {
+    implementation "net.neoforged:neoforge:${neo_version}"
+    implementation files('libs/mmdlib-2.0.0-alpha.jar', 'libs/PowerAdvantage-1.21.1-3.0.0.jar')
+}
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+processResources {
+    inputs.property 'mod_version', mod_version
+    filesMatching('META-INF/neoforge.mods.toml') { expand mod_version: mod_version }
+}
+publishing { publications { mavenJava(MavenPublication) { from components.java } } }
+
+// Opt-in integration tests run in a disposable server and are excluded from release JARs.
+if (project.hasProperty('gameTests')) {
+    sourceSets.main.java.srcDir 'src/gameTest/java'
+    sourceSets.main.resources.srcDir 'src/gameTest/resources'
+    runs {
+        gameTestServer {
+            workingDirectory project.layout.projectDirectory.dir('build/gametest-run')
+            systemProperty 'neoforge.enabledGameTestNamespaces', 'steamadvantage'
+        }
+    }
+    tasks.named('jar') { exclude '**/SteamGameTests*', 'data/steamadvantage/structure/empty.nbt', 'data/steamadvantage/recipe/test_slow_distillation.json', 'data/c/tags/fluid/oil.json', 'mmdlib/standalone/block/test_large_steam_tank.json', 'mmdlib/screen/test_large_steam_tank.xml' }
+    tasks.named('sourcesJar') { exclude '**/SteamGameTests*' }
+}
+
+// Opt-in real-client verification, using a copy of the disposable GameTest world.
+if (project.hasProperty('guiSmoke')) {
+    sourceSets.main.java.srcDir 'src/guiSmoke/java'
+    def prepareGuiSmokeWorld = tasks.register('prepareGuiSmokeWorld', Copy) {
+        from 'build/gametest-run/world'
+        into 'build/gui-smoke-client/saves/GuiSmoke'
+        exclude '**/session.lock'
+        doFirst {
+            if (!file('build/gametest-run/world/level.dat').exists()) {
+                throw new GradleException('Run -PgameTests runGameTestServer before the GUI smoke test.')
+            }
+        }
+    }
+    runs {
+        client {
+            workingDirectory project.layout.projectDirectory.dir('build/gui-smoke-client')
+            arguments '--quickPlaySingleplayer', 'GuiSmoke'
+        }
+    }
+    tasks.matching { it.name == 'runClient' }.configureEach {
+        dependsOn prepareGuiSmokeWorld
+        doFirst {
+            delete 'build/gui-smoke-client/GUI_SMOKE_PASS.txt'
+            delete 'build/gui-smoke-client/screenshots'
+        }
+    }
+    tasks.named('jar') { exclude '**/smoke/**' }
+    tasks.named('sourcesJar') { exclude '**/smoke/**' }
+}

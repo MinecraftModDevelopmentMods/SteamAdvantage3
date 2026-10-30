@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " Y ",
+    "gXg",
+    "pmp"
+  ],
+  "key": {
+    "g": {
+      "item": "steamadvantage:steam_governor"
+    },
+    "X": {
+      "item": "steamadvantage:steam_pipe"
+    },
+    "p": {
+      "tag": "c:plates/iron"
+    },
+    "m": {
+      "item": "poweradvantage:steel_frame"
+    },
+    "Y": {
+      "item": "minecraft:obsidian"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_boiler_geothermal",
+    "count": 1
+  }
+}

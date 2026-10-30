@@ -1,0 +1,33 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="LGPL 2.1"
+[[mods]]
+modId="steamadvantage"
+version="${mod_version}"
+displayName="SteamAdvantage"
+authors="DrCyano, DShadowWolf"
+description='''Steam-powered industry.'''
+[[dependencies.steamadvantage]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.265,21.2)"
+ordering="NONE"
+side="BOTH"
+[[dependencies.steamadvantage]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.21.2)"
+ordering="NONE"
+side="BOTH"
+[[dependencies.steamadvantage]]
+modId="mmdlib"
+type="required"
+versionRange="[2.0.0-alpha,3)"
+ordering="AFTER"
+side="BOTH"
+[[dependencies.steamadvantage]]
+modId="poweradvantage"
+type="required"
+versionRange="[3.0.0,4)"
+ordering="AFTER"
+side="BOTH"

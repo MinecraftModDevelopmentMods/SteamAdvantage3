@@ -1,0 +1,13 @@
+{
+  "module": "steamadvantage:machine",
+  "block_entity_data": {
+    "kind": "steam_boiler_geothermal",
+    "steam_capacity": 10000,
+    "water_capacity": 4000,
+    "fuel_capacity": 0,
+    "product_capacity": 0,
+    "inventory_size": 9,
+    "energy_capacity": 0,
+    "energy_transfer": 0
+  }
+}

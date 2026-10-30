@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<screen xmlns="https://moddev.zone/mmdlib/screen" title="block.steamadvantage.steam_boiler_electric" block-entity="zone.moddev.mc.SteamAdvantage.machines.SteamMachine">
+  <vbox padding="7" spacing="6">
+    <hbox spacing="6" align="center">
+      <group label="screen.steamadvantage.steam" padding="4">
+        <gauge id="steam" orientation="vertical" length="64" value="#getSteamTank" max="#getSteamCapacity" tooltip="screen.steamadvantage.steam_amount" />
+      </group>
+      <group label="screen.steamadvantage.water" padding="4">
+        <gauge id="water" orientation="vertical" length="64" value="#getWaterTank" max="#getWaterCapacity" tooltip="screen.steamadvantage.water_amount" />
+      </group>
+      <group label="screen.steamadvantage.energy" padding="4">
+        <gauge id="energy" orientation="vertical" length="64" value="#getEnergy" max="#getEnergyCapacity" tooltip="screen.steamadvantage.energy_amount" color="#C0392B" />
+      </group>
+    </hbox>
+  </vbox>
+</screen>

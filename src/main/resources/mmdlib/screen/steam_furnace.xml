@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8'?>
+<screen xmlns="https://moddev.zone/mmdlib/screen" title="block.steamadvantage.steam_furnace" block-entity="zone.moddev.mc.SteamAdvantage.machines.SteamMachine">
+  <vbox padding="7" spacing="6">
+    <hbox spacing="6" align="center">
+      <group label="screen.steamadvantage.steam" padding="4">
+        <gauge id="steam" orientation="vertical" length="64" value="#getSteamTank" max="#getSteamCapacity" tooltip="screen.steamadvantage.steam_amount" />
+      </group>
+      <group label="screen.steamadvantage.fuel" padding="4">
+        <vbox spacing="4">
+          <slot index="0" />
+          <meter orientation="horizontal" length="18" thickness="5" color="#E88D24" value="#getBurnTime" max="#getTotalBurnTime" tooltip="screen.steamadvantage.burn_amount" />
+        </vbox>
+      </group>
+      <group label="screen.steamadvantage.heat" padding="4">
+        <gauge id="heat" orientation="vertical" length="64" value="#getTemperature" max="#getMaxTemperature" tooltip="screen.steamadvantage.temperature_amount" color="#E87824" />
+      </group>
+      <group label="screen.steamadvantage.lanes" padding="4">
+        <vbox spacing="2">
+          <hbox spacing="4" align="center">
+            <slot index="1" />
+            <progress value="#getProgress" max="#getProgressMax" jei-recipes="minecraft:smelting" />
+            <slot index="4" size="large" />
+          </hbox>
+          <hbox spacing="4" align="center">
+            <slot index="2" />
+            <progress value="#getSecondProgress" max="#getProgressMax" jei-recipes="minecraft:smelting" />
+            <slot index="5" size="large" />
+          </hbox>
+          <hbox spacing="4" align="center">
+            <slot index="3" />
+            <progress value="#getThirdProgress" max="#getProgressMax" jei-recipes="minecraft:smelting" />
+            <slot index="6" size="large" />
+          </hbox>
+        </vbox>
+      </group>
+    </hbox>
+  </vbox>
+</screen>

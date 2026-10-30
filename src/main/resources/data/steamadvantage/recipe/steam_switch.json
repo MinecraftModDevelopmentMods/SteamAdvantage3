@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " L ",
+    "pfp"
+  ],
+  "key": {
+    "L": {
+      "item": "minecraft:lever"
+    },
+    "p": {
+      "item": "steamadvantage:steam_pipe"
+    },
+    "f": {
+      "item": "poweradvantage:steel_frame"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_switch",
+    "count": 1
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "type": "mmdlib:crushing",
+  "ingredient": {
+    "item": "steamadvantage:steam_elevator"
+  },
+  "result": {
+    "id": "steamadvantage:steam_governor",
+    "count": 3
+  },
+  "neoforge:conditions": [
+    {
+      "type": "steamadvantage:recipe_mode",
+      "modes": [
+        "APOCALYPTIC"
+      ]
+    }
+  ]
+}

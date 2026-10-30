@@ -1,0 +1,13 @@
+{
+  "module": "steamadvantage:machine",
+  "block_entity_data": {
+    "kind": "steam_furnace",
+    "steam_capacity": 20000,
+    "water_capacity": 0,
+    "fuel_capacity": 0,
+    "product_capacity": 0,
+    "inventory_size": 9,
+    "energy_capacity": 0,
+    "energy_transfer": 0
+  }
+}

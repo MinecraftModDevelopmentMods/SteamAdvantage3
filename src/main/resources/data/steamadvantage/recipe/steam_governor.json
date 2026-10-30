@@ -1,0 +1,34 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " t ",
+    "srs",
+    "btb"
+  ],
+  "key": {
+    "t": {
+      "item": "minecraft:iron_nugget"
+    },
+    "s": {
+      "item": "minecraft:stick"
+    },
+    "r": {
+      "item": "minecraft:stick"
+    },
+    "b": {
+      "tag": "c:ingots/brass"
+    }
+  },
+  "result": {
+    "id": "steamadvantage:steam_governor",
+    "count": 1
+  },
+  "neoforge:conditions": [
+    {
+      "type": "steamadvantage:recipe_mode",
+      "modes": [
+        "NORMAL"
+      ]
+    }
+  ]
+}

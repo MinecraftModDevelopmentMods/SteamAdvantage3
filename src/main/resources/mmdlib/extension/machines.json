@@ -1,0 +1,10 @@
+{
+  "events": [
+    {
+      "type": "block-right-click",
+      "id": "steamadvantage:use_machine",
+      "handler": "zone.moddev.mc.SteamAdvantage.machines.MachineInteractions#use",
+      "name": "Use steam machine"
+    }
+  ]
+}

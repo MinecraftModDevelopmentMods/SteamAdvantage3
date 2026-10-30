@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<screen xmlns="https://moddev.zone/mmdlib/screen" title="block.steamadvantage.steam_drill" block-entity="zone.moddev.mc.SteamAdvantage.machines.SteamMachine">
+  <vbox padding="7" spacing="6">
+    <hbox spacing="6" align="center">
+      <group label="screen.steamadvantage.steam" padding="4">
+        <gauge id="steam" orientation="vertical" length="64" value="#getSteamTank" max="#getSteamCapacity" tooltip="screen.steamadvantage.steam_amount" />
+      </group>
+      <group label="screen.steamadvantage.output" padding="4">
+        <vbox spacing="3">
+          <hbox>
+            <slot index="4" />
+            <slot index="5" />
+            <slot index="6" />
+            <slot index="7" />
+            <slot index="8" />
+          </hbox>
+          <meter orientation="horizontal" length="90" thickness="5" color="#70A050" value="#getDrillDepth" max="#getDrillRange" tooltip="screen.steamadvantage.depth_amount" />
+        </vbox>
+      </group>
+    </hbox>
+  </vbox>
+</screen>
