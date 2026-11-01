@@ -105,6 +105,19 @@ survive save/load. See [PA3 distillation docs](other-docs/PA3-docs/distillation.
 for the recipe format and timing rules. The slow water-to-lava recipe under
 `src/gameTest` is only a test fixture.
 
+## Future plans
+
+These are ideas from the original PowerAdvantage notes, not commitments or
+scheduled work:
+
+- [ ] Explore extracting reusable automation/crafting support into PA3, so
+  future planned mods (potentially including Quantum Advantage) can build on it.
+- [ ] Steam-powered machine shop: an automatable crafter, with the automated
+  crafter in EA3 as a possible reference.
+- [ ] Steam-powered defense cannon: manually aimed and activated by redstone.
+- [x] Oil-burning steam boiler: implemented in SA3.
+- [ ] Bioreactor: slowly converts organic matter into liquid fuel.
+
 ## Verification and compatibility boundaries
 
 The integration suite checks all machine registrations, capabilities, NBT
