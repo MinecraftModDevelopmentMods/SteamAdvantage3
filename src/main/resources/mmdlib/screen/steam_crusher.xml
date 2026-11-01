@@ -8,7 +8,7 @@
       <group label="screen.steamadvantage.input" padding="4">
         <slot index="0" />
       </group>
-      <progress value="#getProgress" max="#getProgressMax" jei-recipes="mmdlib:crushing" />
+      <progress value="#getProgress" max="#getProgressMax" tooltip-shift="screen.steamadvantage.progress_amount" jei-recipes="mmdlib:crushing" />
       <group label="screen.steamadvantage.output" padding="4">
         <slot index="4" size="large" />
       </group>

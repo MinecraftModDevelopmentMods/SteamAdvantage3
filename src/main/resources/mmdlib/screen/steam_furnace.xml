@@ -18,17 +18,17 @@
         <vbox spacing="2">
           <hbox spacing="4" align="center">
             <slot index="1" />
-            <progress value="#getProgress" max="#getProgressMax" jei-recipes="minecraft:smelting" />
+            <progress value="#getProgress" max="#getProgressMax" tooltip-shift="screen.steamadvantage.progress_amount" jei-recipes="minecraft:smelting" />
             <slot index="4" size="large" />
           </hbox>
           <hbox spacing="4" align="center">
             <slot index="2" />
-            <progress value="#getSecondProgress" max="#getProgressMax" jei-recipes="minecraft:smelting" />
+            <progress value="#getSecondProgress" max="#getProgressMax" tooltip-shift="screen.steamadvantage.progress_amount" jei-recipes="minecraft:smelting" />
             <slot index="5" size="large" />
           </hbox>
           <hbox spacing="4" align="center">
             <slot index="3" />
-            <progress value="#getThirdProgress" max="#getProgressMax" jei-recipes="minecraft:smelting" />
+            <progress value="#getThirdProgress" max="#getProgressMax" tooltip-shift="screen.steamadvantage.progress_amount" jei-recipes="minecraft:smelting" />
             <slot index="6" size="large" />
           </hbox>
         </vbox>
