@@ -18,9 +18,13 @@ runs {
     client {}
     server { argument '--nogui' }
 }
+repositories {
+    maven { url = 'https://maven.moddev.zone/releases' }
+}
 dependencies {
     implementation "net.neoforged:neoforge:${neo_version}"
-    implementation files('libs/mmdlib-2.0.0-alpha.jar', 'libs/PowerAdvantage-1.21.1-3.0.0.jar')
+    implementation "zone.moddev.mc.lib:mmdlib:${mmdlib_version}"
+    implementation "zone.moddev.mc.poweradvantage:PowerAdvantage:${poweradvantage_version}"
 }
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
 processResources {
