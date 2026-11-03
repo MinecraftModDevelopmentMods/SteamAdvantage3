@@ -1,0 +1,58 @@
+
+Vanilla-style 16x assets for Steam Advantage
+
+==============================================================================
+LICENSE
+==============================================================================
+
+The mod's code and all textures in this pack are licensed under the GNU
+Lesser General Public License, version 2.1 (LGPL 2.1):
+       https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+
+All textures in this pack were drawn for it and belong to Minecraft Mod
+Development group. No file in this pack contains another artist's artwork.
+
+Not covered by LGPL 2.1: Minecraft assets and anything derived from them
+remain the property of Mojang Studios (see "Other material").
+
+==============================================================================
+FUTUREAZOO - ACKNOWLEDGEMENT (palette only)
+==============================================================================
+
+Artist:  futureazoo
+Source:  TextureRepository, https://github.com/Futureazoo/TextureRepository
+         (folder: futureazoo/)
+
+The brass colours in this pack - an 8-colour ramp (6b4e00 to f3d174) and two
+pale highlights (f6da96, f3d487) - were sampled from futureazoo's bronze
+machine set (bronze_furnace, bronze_cannon, bronze_sawmill,
+bronze_watertower). They are used in:
+  block/steam_pipe.png
+  block/materials/bolted_brass.png
+  block/coal_boiler_front.png (handle)
+  block/steam_drill_top.png (valves and pipes)
+  block/steam_switch_off.png, steam_switch_on.png (corner plates)
+  block/steam_elevator_side.png (arrow)
+  block/rock_crusher_front.png (hinges and latch)
+  block/steam_pump_front.png, steam_pump_side.png (gauge and lamp fittings)
+  item/steam_governor.png, item/steam_drill_bit.png
+
+This is a thank-you credit. These textures were drawn for this pack and
+contain none of futureazoo's artwork, so futureazoo's CC BY-NC-SA 4.0 license
+does not apply to them; they are LGPL 2.1 like the rest of this pack.
+
+==============================================================================
+OTHER MATERIAL
+==============================================================================
+
+Minecraft (Mojang Studios):
+  - Many colours were sampled from vanilla textures (heavy core, copper, gold,
+    spruce, smooth stone, furnace, redstone).
+  - The GUIs follow the vanilla container style (panel, slot and arrow colours).
+
+Steam Advantage is a mod by DrCyano. The GUI layouts and the steam drill's
+block model come from the mod; the model and blockstate in this pack are
+reworked versions of the mod's originals.
+
+This pack is not affiliated with or endorsed by Mojang Studios, Microsoft,
+DrCyano or futureazoo.
