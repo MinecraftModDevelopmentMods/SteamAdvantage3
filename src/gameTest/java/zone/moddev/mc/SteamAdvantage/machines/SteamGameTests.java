@@ -276,6 +276,17 @@ public final class SteamGameTests {
         });
     }
     @GameTest(template = "empty", timeoutTicks = 40)
+    public static void furnaceCoolingClearsResidualTemperature(GameTestHelper h) {
+        var furnace = place(h, "steam_furnace", 2, 2, 2);
+        furnace.temperature = 0.005f;
+        FurnaceOperation.smelt(furnace);
+        h.assertTrue(furnace.getTemperature() == 0,
+                "Cooling snaps negligible residual temperature to zero");
+        h.assertTrue(Float.isFinite(furnace.getTemperature()),
+                "Furnace temperature remains finite");
+        h.succeed();
+    }
+    @GameTest(template = "empty", timeoutTicks = 40)
     public static void fullCrusherOutputDoesNotConsumeResources(GameTestHelper h) {
         var crusher = place(h, "steam_crusher", 2, 2, 2);
         crusher.fluids.fill(steam(1000), FluidAction.EXECUTE);

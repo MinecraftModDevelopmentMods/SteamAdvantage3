@@ -6,6 +6,8 @@ import net.minecraft.world.item.crafting.SingleRecipeInput;
 
 /** Three-lane smelting and temperature calculation. */
 final class FurnaceOperation {
+    private static final float MIN_TEMPERATURE = 0.01f;
+
     private FurnaceOperation() {}
 
     static void smelt(SteamMachine machine) {
@@ -28,6 +30,8 @@ final class FurnaceOperation {
                                 * (10 * input - .00003f * machine.temperature * machine.temperature
                                         - .03f * machine.temperature),
                 0, 2000);
+        if (machine.temperature < MIN_TEMPERATURE)
+            machine.temperature = 0;
         for (int i = 0; i < 3; i++) {
             var inputStack = new SingleRecipeInput(machine.items.getStackInSlot(i + 1));
             var recipe =
