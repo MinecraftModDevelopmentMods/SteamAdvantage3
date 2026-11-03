@@ -51,14 +51,20 @@ public final class SteamGameTests {
         var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
         boiler.fluids.fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE);
         boiler.items.setStackInSlot(0, new ItemStack(Items.COAL));
+        h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
         h.runAfterDelay(20, () -> {
             h.assertTrue(boiler.fluids.tank(0).getFluidAmount() > 0, "Boiler produces steam");
             h.assertTrue(boiler.fluids.tank(1).getFluidAmount() < 1000, "Boiler spends water");
+            h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
+                    "Running boiler melts snow above it");
             h.setBlock(new BlockPos(3, 2, 2), Blocks.REDSTONE_BLOCK);
+            h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
             int before = boiler.fluids.tank(0).getFluidAmount();
             h.runAfterDelay(10, () -> {
                 h.assertTrue(boiler.fluids.tank(0).getFluidAmount() == before,
                         "Redstone disables boiler");
+                h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).is(Blocks.SNOW),
+                        "Disabled boiler does not melt snow");
                 h.succeed();
             });
         });
@@ -184,11 +190,14 @@ public final class SteamGameTests {
         var still = place(h, "steam_still", 2, 2, 2);
         var crudeOil = zone.moddev.mc.poweradvantage.init.Fluids.CRUDE_OIL.get();
         var refinedOil = zone.moddev.mc.poweradvantage.init.Fluids.REFINED_OIL.get();
+        h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
         still.fluids.tank(0).fill(steam(150), FluidAction.EXECUTE);
         still.fluids.tank(2).fill(new FluidStack(crudeOil, 2), FluidAction.EXECUTE);
         h.assertTrue(still.fluids.tank(2).getFluidAmount() == 2,
                 "PA3's default crude-oil input is accepted");
         h.runAfterDelay(1, () -> {
+            h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
+                    "Running still melts snow above it");
             h.assertTrue(still.fluids.tank(2).isEmpty(), "Input is consumed when operation starts");
             h.assertTrue(still.fluids.tank(1).isEmpty(), "Output waits for recipe duration");
             h.assertTrue(still.getProgress() == 1 && still.getProgressMax() == 2,
@@ -267,11 +276,44 @@ public final class SteamGameTests {
         furnace.items.setStackInSlot(1, new ItemStack(Items.RAW_IRON));
         furnace.items.setStackInSlot(2, new ItemStack(Items.RAW_GOLD));
         furnace.items.setStackInSlot(3, new ItemStack(Items.RAW_COPPER));
+        h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
         h.runAfterDelay(500, () -> {
             h.assertTrue(furnace.items.getStackInSlot(4).is(Items.IRON_INGOT), "Furnace iron lane");
             h.assertTrue(furnace.items.getStackInSlot(5).is(Items.GOLD_INGOT), "Furnace gold lane");
             h.assertTrue(
                     furnace.items.getStackInSlot(6).is(Items.COPPER_INGOT), "Furnace copper lane");
+            h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
+                    "Running furnace melts snow above it");
+            h.succeed();
+        });
+    }
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void hotIdleFurnaceStillMeltsSnow(GameTestHelper h) {
+        var furnace = place(h, "steam_furnace", 2, 2, 2);
+        furnace.temperature = 1500;
+        h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
+        h.runAfterDelay(1, () -> {
+            h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
+                    "Furnace without fuel melts snow while it is still hot");
+            furnace.temperature = 50;
+            h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
+            h.runAfterDelay(1, () -> {
+                h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).is(Blocks.SNOW),
+                        "Cool furnace does not melt snow");
+                h.succeed();
+            });
+        });
+    }
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void fullGeothermalBoilerStillMeltsSnow(GameTestHelper h) {
+        var geo = place(h, "steam_boiler_geothermal", 2, 2, 2);
+        geo.fluids.tank(geo.steam).fill(steam(geo.fluids.tank(geo.steam).getCapacity()),
+                FluidAction.EXECUTE);
+        geo.temperature = 500;
+        h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
+        h.runAfterDelay(1, () -> {
+            h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
+                    "Hot geothermal boiler melts snow with a full steam tank and no water");
             h.succeed();
         });
     }

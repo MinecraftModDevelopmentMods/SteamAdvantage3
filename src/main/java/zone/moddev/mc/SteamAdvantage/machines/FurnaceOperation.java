@@ -10,7 +10,7 @@ final class FurnaceOperation {
 
     private FurnaceOperation() {}
 
-    static void smelt(SteamMachine machine) {
+    static boolean smelt(SteamMachine machine) {
         var level = machine.getLevel();
         boolean canProcess = false;
         for (int i = 1; i <= 3; i++)
@@ -50,5 +50,6 @@ final class FurnaceOperation {
                 machine.items.insertResult(i + 4, output, false);
             }
         }
+        return machine.temperature >= 100;
     }
 }

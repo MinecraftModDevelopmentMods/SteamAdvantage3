@@ -12,27 +12,16 @@ import zone.moddev.mc.SteamAdvantage.config.SteamConfig;
 final class BoilerOperation {
     private BoilerOperation() {}
 
-    static void boil(SteamMachine machine) {
-        var level = machine.getLevel();
-        var pos = machine.getBlockPos();
+    static boolean boil(SteamMachine machine) {
+        // Geothermal heat comes from the surroundings, so it stays hot even when it can't boil.
+        boolean geothermalHot =
+                machine.kind.equals("steam_boiler_geothermal") && geothermalHeat(machine);
         if (machine.fluids.tank(machine.water).isEmpty()
                 || machine.fluids.tank(machine.steam).getSpace() < 100)
-            return;
+            return geothermalHot;
         boolean heat = switch (machine.kind) {
             case "steam_boiler_electric" -> machine.energy.consume(16);
-            case "steam_boiler_geothermal" -> {
-                int hot = 0;
-                for (Direction d : Direction.values()) {
-                    BlockPos p = pos.relative(d);
-                    if (level.hasChunkAt(p)
-                            && (level.getFluidState(p).is(net.minecraft.tags.FluidTags.LAVA)
-                                    || level.getBlockState(p).is(Blocks.MAGMA_BLOCK)))
-                        hot++;
-                }
-                machine.temperature =
-                        Math.min(2000, Math.max(0, machine.temperature + hot * 4 - 1));
-                yield machine.temperature >= 100;
-            }
+            case "steam_boiler_geothermal" -> geothermalHot;
             case "steam_boiler_oil" -> {
                 if (machine.burn <= 0
                         && machine.fluids.tank(machine.fuel).getFluidAmount() >= 100) {
@@ -50,5 +39,21 @@ final class BoilerOperation {
                                   machine.kind.equals("steam_boiler_electric") ? 50 : 100),
                             FluidAction.EXECUTE);
         }
+        return heat;
+    }
+
+    private static boolean geothermalHeat(SteamMachine machine) {
+        var level = machine.getLevel();
+        var pos = machine.getBlockPos();
+        int hot = 0;
+        for (Direction d : Direction.values()) {
+            BlockPos p = pos.relative(d);
+            if (level.hasChunkAt(p)
+                    && (level.getFluidState(p).is(net.minecraft.tags.FluidTags.LAVA)
+                            || level.getBlockState(p).is(Blocks.MAGMA_BLOCK)))
+                hot++;
+        }
+        machine.temperature = Math.min(2000, Math.max(0, machine.temperature + hot * 4 - 1));
+        return machine.temperature >= 100;
     }
 }

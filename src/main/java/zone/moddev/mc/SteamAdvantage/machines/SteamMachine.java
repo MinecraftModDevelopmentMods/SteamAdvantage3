@@ -8,6 +8,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.material.Fluids;
@@ -88,6 +89,7 @@ public final class SteamMachine
 
     public static void tick(Level level, BlockPos pos, BlockState state, SteamMachine m) {
         boolean powered = level.hasNeighborSignal(pos);
+        boolean running = false;
         if (powered && m.kind.equals("steam_drill"))
             DrillOperation.clearDrill(m);
         if (m.kind.equals("steam_elevator"))
@@ -96,16 +98,21 @@ public final class SteamMachine
             switch (m.kind) {
                 case "steam_boiler_coal", "steam_boiler_oil", "steam_boiler_electric",
                         "steam_boiler_geothermal" ->
-                    BoilerOperation.boil(m);
-                case "steam_furnace" -> FurnaceOperation.smelt(m);
+                    running = BoilerOperation.boil(m);
+                case "steam_furnace" -> running = FurnaceOperation.smelt(m);
                 case "steam_crusher" -> CrusherOperation.crush(m);
                 case "steam_drill" -> DrillOperation.drill(m);
                 case "steam_pump" -> PumpOperation.pump(m);
-                case "steam_still" -> StillOperation.distill(m);
+                case "steam_still" -> running = StillOperation.distill(m);
                 case "steam_switch" -> m.exportSteam();
                 default -> {
                 }
             }
+        }
+        if (running) {
+            BlockPos snowPos = pos.above();
+            if (level.getBlockState(snowPos).is(Blocks.SNOW))
+                level.removeBlock(snowPos, false);
         }
         if (!powered && (m.kind.startsWith("steam_boiler") || m.kind.equals("steam_tank"))) {
             for (Direction side : Direction.values())

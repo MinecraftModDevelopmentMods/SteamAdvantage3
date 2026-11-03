@@ -8,41 +8,44 @@ import zone.moddev.mc.poweradvantage.api.distillation.DistillingRecipe;
 final class StillOperation {
     private StillOperation() {}
 
-    static void distill(SteamMachine machine) {
+    static boolean distill(SteamMachine machine) {
+        boolean running = !machine.pendingDistillation.isEmpty();
         if (machine.pendingDistillation.isEmpty()) {
             if (!machine.hasSteam(150))
-                return;
+                return false;
             var inputTank = machine.fluids.tank(machine.water);
             var recipeHolder = DistillingRecipe.find(machine.getLevel(), inputTank.getFluid());
             if (recipeHolder.isEmpty())
-                return;
+                return false;
             var recipe = recipeHolder.get().value();
             FluidStack result = recipe.output().copy();
             if (machine.fluids.tank(machine.product).fill(result, FluidAction.SIMULATE)
                     != result.getAmount())
-                return;
+                return false;
             int amount = recipe.input().amount();
             if (inputTank.drain(amount, FluidAction.SIMULATE).getAmount() != amount)
-                return;
+                return false;
             inputTank.drain(amount, FluidAction.EXECUTE);
             machine.spendSteam(150);
             machine.pendingDistillation = result;
             machine.distillationDuration = Math.max(1, recipe.duration());
             machine.progress[0] = 0;
+            running = true;
         }
 
         if (machine.progress[0] < machine.distillationDuration)
             machine.progress[0]++;
         if (machine.progress[0] < machine.distillationDuration)
-            return;
+            return running;
 
         var outputTank = machine.fluids.tank(machine.product);
         if (outputTank.fill(machine.pendingDistillation, FluidAction.SIMULATE)
                 != machine.pendingDistillation.getAmount())
-            return;
+            return running;
         outputTank.fill(machine.pendingDistillation, FluidAction.EXECUTE);
         machine.pendingDistillation = FluidStack.EMPTY;
         machine.progress[0] = 0;
         machine.distillationDuration = 0;
+        return running;
     }
 }
