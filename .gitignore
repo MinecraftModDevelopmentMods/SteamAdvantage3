@@ -1,9 +1,97 @@
-.gradle/
-build/
-run/
-.idea/
+# eclipse
+bin
+*.launch
+.settings
+.settings/*
+.metadata
+.classpath
+.project
+/.eclipse/
+/.factorypath
+
+# idea
+out
+*.ipr
+*.iws
 *.iml
-gradle
-SA2
-other-docs
-libs
+.idea
+
+# vscode
+/.vscode/
+/.vscode
+.vscode/*
+.vscode/
+
+# gradle
+build
+.gradle
+
+# other
+eclipse
+run
+run-data
+run-upgrade
+/run-*/
+logs
+classes
+/crash-reports/
+/screenshots/
+/mcmodsrepo/
+/run.*
+/*.log
+/*.jfr
+/*.hprof
+/hs_err_pid*.log
+/replay_pid*.log
+
+# local regression, benchmark, and profiling evidence
+/benchmark-*/
+/preferred-seed-*/
+/validation/
+/regression-*/
+/evidence/
+/evidence-*/
+/*-evidence/
+
+/README.txt
+/forge-*-changelog.txt
+
+/secret.json
+/libs/*
+!/libs/README.txt
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# python
+__pycache__/
+*.py[cod]
+
+/bugreport.md
+
+# machine-specific agent context (public project notes belong under /docs)
+AGENT.md
+AGENTS.md
+agent-notes/
+.agent/
+.agents/
+.codex/
+CLAUDE.md
+.claude/
+GEMINI.md
+.gemini/
+agent-*.md
+codex-*.md
+
+# local validation/audit reports
+**/VALIDATION.md
+**/validation.md
+**/DEVELOPMENT.md
+**/development.md
+**/REGISTRY_AUDIT.md
+**/registry_audit.md
+
+# SteamAdvantage reference inputs (not part of the build)
+/SA2/
+/other-docs/

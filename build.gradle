@@ -1,50 +1,140 @@
 plugins {
     id 'java-library'
+    id 'eclipse'
+    id 'idea'
     id 'maven-publish'
-    id 'net.neoforged.gradle.userdev' version '7.1.38'
+    id 'net.neoforged.moddev' version '2.0.148'
 }
-version = "${minecraft_version}-${mod_version}"
-group = 'zone.moddev.mc.SteamAdvantage'
-base.archivesName = 'SteamAdvantage'
+
+def env = System.getenv()
+def tag = providers.environmentVariable('TAG')
+version = tag.orElse("${mod_version}-development").get()
+group = mod_group
+
+base {
+    archivesName = mod_archive_name
+}
+
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(21)
     withSourcesJar()
+    withJavadocJar()
 }
-runs {
-    configureEach {
-        workingDirectory project.layout.projectDirectory.dir('run')
-        modSource project.sourceSets.main
+
+neoForge {
+    version = neoforge_version
+
+    parchment {
+        minecraftVersion = parchment_minecraft_version
+        mappingsVersion = parchment_mappings_version
     }
-    client {}
-    server { argument '--nogui' }
+
+    runs {
+        configureEach {
+            gameDirectory = file('run')
+        }
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
 }
+
 repositories {
+    mavenCentral()
     maven { url = 'https://maven.moddev.zone/releases' }
 }
+
 dependencies {
-    implementation "net.neoforged:neoforge:${neo_version}"
     implementation "zone.moddev.mc.lib:mmdlib:${mmdlib_version}"
     implementation "zone.moddev.mc.poweradvantage:PowerAdvantage:${poweradvantage_version}"
 }
-tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
-processResources {
-    inputs.property 'mod_version', mod_version
-    filesMatching('META-INF/neoforge.mods.toml') { expand mod_version: mod_version }
+
+tasks.named('processResources', ProcessResources) {
+    def properties = [
+            minecraft_version_range: minecraft_version_range,
+            neoforge_version_range: neoforge_version_range,
+            loader_version_range: loader_version_range,
+            mmdlib_version_range: mmdlib_version_range,
+            poweradvantage_version_range: poweradvantage_version_range,
+            mod_id: mod_id,
+            mod_name: mod_name,
+            mod_license: mod_license,
+            mod_version: project.version,
+            mod_authors: mod_authors,
+            mod_description: mod_description,
+            curseforge_url: "https://www.curseforge.com/minecraft/mc-mods/${mod_id}",
+            issue_url: issue_url,
+            update_url: update_url
+    ]
+    inputs.properties properties
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand properties
+    }
 }
-publishing { publications { mavenJava(MavenPublication) { from components.java } } }
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = mod_archive_name
+            from components.java
+        }
+    }
+    repositories {
+        if (env.MAVEN_UPLOAD_URL) {
+            maven {
+                url = uri(env.MAVEN_UPLOAD_URL)
+                credentials {
+                    username = env.MAVEN_UPLOAD_USERNAME
+                    password = env.MAVEN_UPLOAD_PASSWORD
+                }
+            }
+        }
+    }
+}
+
+idea {
+    module {
+        downloadSources = true
+    }
+}
+
+eclipse {
+    classpath {
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
 
 // Opt-in integration tests run in a disposable server and are excluded from release JARs.
 if (project.hasProperty('gameTests')) {
     sourceSets.main.java.srcDir 'src/gameTest/java'
     sourceSets.main.resources.srcDir 'src/gameTest/resources'
-    runs {
-        gameTestServer {
-            workingDirectory project.layout.projectDirectory.dir('build/gametest-run')
-            systemProperty 'neoforge.enabledGameTestNamespaces', 'steamadvantage'
+    neoForge {
+        runs {
+            gameTestServer {
+                type = 'gameTestServer'
+                gameDirectory = file('build/gametest-run')
+                systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+            }
         }
     }
     tasks.named('jar') { exclude '**/SteamGameTests*', 'data/steamadvantage/structure/empty.nbt', 'data/steamadvantage/recipe/test_slow_distillation.json', 'data/c/tags/fluid/oil.json', 'mmdlib/standalone/block/test_large_steam_tank.json', 'mmdlib/screen/test_large_steam_tank.xml' }
     tasks.named('sourcesJar') { exclude '**/SteamGameTests*' }
+    tasks.named('javadoc') { exclude '**/SteamGameTests*' }
 }
 
 // Opt-in real-client verification, using a copy of the disposable GameTest world.
@@ -60,10 +150,12 @@ if (project.hasProperty('guiSmoke')) {
             }
         }
     }
-    runs {
-        client {
-            workingDirectory project.layout.projectDirectory.dir('build/gui-smoke-client')
-            arguments '--quickPlaySingleplayer', 'GuiSmoke'
+    neoForge {
+        runs {
+            client {
+                gameDirectory = file('build/gui-smoke-client')
+                programArguments.addAll '--quickPlaySingleplayer', 'GuiSmoke'
+            }
         }
     }
     tasks.matching { it.name == 'runClient' }.configureEach {
@@ -75,4 +167,5 @@ if (project.hasProperty('guiSmoke')) {
     }
     tasks.named('jar') { exclude '**/smoke/**' }
     tasks.named('sourcesJar') { exclude '**/smoke/**' }
+    tasks.named('javadoc') { exclude '**/smoke/**' }
 }

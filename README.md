@@ -1,16 +1,14 @@
 # SteamAdvantage 3
 
 NeoForge 1.21.1 port of the mod retained in `SA2/`. The root project is named
-`SteamAdvantage`, version `3.0.0`, with Java package `zone.moddev.mc.SteamAdvantage`.
-It uses Java 21 and NeoGradle userdev **7.1.38**, the NeoForge 7.x toolchain
-corresponding to the requested FG7 setup, with NeoForge **21.1.265**.
+`SteamAdvantage`, with Java package `zone.moddev.mc.SteamAdvantage`. It follows the
+[MMD mod template](https://github.com/MinecraftModDevelopmentMods/mmd-mod-template/tree/1.21.1):
+Java 21, ModDevGradle with Parchment mappings, and NeoForge **21.1.265**. Project
+metadata and dependency versions live in `gradle.properties`.
 
-Required runtime and compile dependencies are the exact local files:
-
-- `libs/mmdlib-2.0.0-alpha.jar`
-- `libs/PowerAdvantage-1.21.1-3.0.0.jar`
-
-These remain separate installed mods; the SteamAdvantage JAR does not embed them.
+MMDLib and PowerAdvantage 3 are resolved from `https://maven.moddev.zone/releases`
+(`zone.moddev.mc.lib:mmdlib` and `zone.moddev.mc.poweradvantage:PowerAdvantage`).
+They remain separate installed mods; the SteamAdvantage JAR does not embed them.
 `SA2/` and `other-docs/` are reference inputs, not Gradle subprojects.
 
 ```sh
@@ -21,9 +19,12 @@ These remain separate installed mods; the SteamAdvantage JAR does not embed them
 python3 scripts/validate_resources.py
 ```
 
-After the first dependency resolution, the build and server tests work with
-`--offline`. Release output is `build/libs/SteamAdvantage-1.21.1-3.0.0.jar`.
-GameTests and their fixture datapacks are excluded from the release JAR.
+Development builds are versioned `<mod_version>-development`, for example
+`build/libs/SteamAdvantage-3.0.0.121012-development.jar`. Releases are made by pushing a
+Git tag in the `major.minor.bug.mcversion+loader` form (for example `3.0.0.121012`); the
+publish workflow uses the tag as the version and uploads to GitHub, and to Maven and
+CurseForge when their secrets are configured. GameTests and their fixture datapacks are
+excluded from the release JAR.
 
 ## Content and operation
 
