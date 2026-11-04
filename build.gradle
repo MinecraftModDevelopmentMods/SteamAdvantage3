@@ -8,7 +8,7 @@ plugins {
 
 def env = System.getenv()
 def tag = providers.environmentVariable('TAG')
-version = tag.orElse("${mod_version}-development").get()
+version = tag.orElse(mod_version).get()
 group = mod_group
 
 base {

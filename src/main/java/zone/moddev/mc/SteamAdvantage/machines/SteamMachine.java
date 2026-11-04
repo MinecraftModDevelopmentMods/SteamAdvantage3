@@ -257,7 +257,7 @@ public final class SteamMachine
         return depth;
     }
     public int getDrillRange() {
-        return 64;
+        return DrillOperation.MAX_RANGE;
     }
     @Override
     public net.neoforged.neoforge.items.IItemHandlerModifiable screenItems() {

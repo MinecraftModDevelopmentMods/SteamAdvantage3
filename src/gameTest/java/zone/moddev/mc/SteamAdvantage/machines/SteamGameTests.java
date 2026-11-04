@@ -137,6 +137,31 @@ public final class SteamGameTests {
             h.succeed();
         });
     }
+    @GameTest(template = "empty")
+    public static void drillBreaksBlocksAtDiamondPickaxeSpeed(GameTestHelper h) {
+        var level = h.getLevel();
+        var p = h.absolutePos(BlockPos.ZERO);
+        // Vanilla diamond pickaxe ticks: stone 1.5*30/8, dirt (wrong tool) 0.5*30/1, obsidian 50*30/8.
+        h.assertTrue(DrillOperation.breakTicks(Blocks.STONE.defaultBlockState(), level, p) == 6,
+                "Stone breaks in 6 ticks");
+        h.assertTrue(DrillOperation.breakTicks(Blocks.DIRT.defaultBlockState(), level, p) == 15,
+                "Dirt breaks in 15 ticks");
+        h.assertTrue(DrillOperation.breakTicks(Blocks.OBSIDIAN.defaultBlockState(), level, p) == 188,
+                "Obsidian breaks in 188 ticks");
+        h.succeed();
+    }
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void starvedDrillPausesInsteadOfRetracting(GameTestHelper h) {
+        var drill = place(h, "steam_drill", 3, 2, 3);
+        // Enough steam for one pipe segment through air, then starved.
+        drill.fluids.fill(steam(300), FluidAction.EXECUTE);
+        h.runAfterDelay(5, () -> {
+            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 2)).is(ModContent.block("drillbit")),
+                    "Starved drill keeps its pipe extended");
+            h.assertTrue(drill.getDrillDepth() == 1, "Starved drill keeps its depth");
+            h.succeed();
+        });
+    }
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void elevatorExtendsAndRetracts(GameTestHelper h) {
         var elevator = place(h, "steam_elevator", 3, 2, 3);

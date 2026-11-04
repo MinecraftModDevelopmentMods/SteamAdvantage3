@@ -16,40 +16,56 @@ import zone.moddev.mc.lib.api.capabilities.Transfer;
 final class DrillOperation {
     private DrillOperation() {}
 
+    /**
+     * Maximum pipe length. SA2 used 64, which reached bedrock from sea level when the world
+     * bottom was y=0; with the floor now at -64, 128 covers sea level down to bedrock.
+     */
+    static final int MAX_RANGE = 128;
+
     static void drill(SteamMachine machine) {
         var level = machine.getLevel();
         var pos = machine.getBlockPos();
-        if (machine.depth >= 64) {
+        if (machine.depth >= MAX_RANGE) {
             followTrack(machine);
-            return;
-        }
-        if (!machine.hasSteam(100)) {
-            clearDrill(machine);
             return;
         }
         Direction direction = machine.getBlockState().getValue(BlockStateProperties.FACING);
+        // Empty the output every tick, so a full inventory can drain and mining resume.
+        Transfer.pushItems(
+                level, pos, direction.getOpposite(), machine.items.view(IoMode.OUTPUT), 64);
         BlockPos target = pos.relative(direction, machine.depth + 1);
-        if (!level.hasChunkAt(target) || !level.isInWorldBounds(target))
-            return;
-        BlockState state = level.getBlockState(target);
-        if (state.getDestroySpeed(level, target) < 0 || state.hasBlockEntity()) {
+        if (!level.isInWorldBounds(target)) {
+            // Reached the top or bottom of the world: treat it like bedrock.
             followTrack(machine);
             return;
         }
+        if (!level.hasChunkAt(target))
+            return;
+        BlockState state = level.getBlockState(target);
         if (state.is(ModContent.block("drillbit"))) {
             machine.depth++;
             return;
         }
-        if (!state.isAir()) {
-            machine.spendSteam(100);
-            if (++machine.progress[0] < Math.max(1, state.getDestroySpeed(level, target) * 12))
-                return;
-            machine.progress[0] = 0;
-        } else if (!machine.hasSteam(250))
+        if (state.getDestroySpeed(level, target) < 0 || state.hasBlockEntity()) {
+            followTrack(machine);
             return;
-        if (!state.isAir()) {
+        }
+        // Air, fluids, plants etc. are simply displaced by the pipe rather than mined.
+        boolean replace = state.canBeReplaced();
+        // Running short of steam pauses the drill; only redstone retracts it. Retracting
+        // here made a starved drill extend one segment and pull it back every tick.
+        if (!machine.hasSteam(replace ? 250 : 100))
+            return;
+        if (!replace) {
+            int ticks = breakTicks(state, level, target);
+            if (machine.progress[0] < ticks) {
+                machine.spendSteam(100);
+                if (++machine.progress[0] < ticks)
+                    return;
+            }
+            // Fully cut: hold here (without spending steam) until the drops fit.
             var drops = Block.getDrops(state, (net.minecraft.server.level.ServerLevel) level,
-                    target, null, null, new ItemStack(Items.DIAMOND_PICKAXE));
+                    target, null, null, tool());
             // Simulate all drops together before altering the world.
             var test = new net.neoforged.neoforge.items.ItemStackHandler(5);
             for (int i = 0; i < 5; i++)
@@ -62,24 +78,42 @@ final class DrillOperation {
             }
             if (!level.destroyBlock(target, false))
                 return;
+            machine.progress[0] = 0;
             for (int i = 0; i < 5; i++) machine.items.setStackInSlot(i + 4, test.getStackInSlot(i));
-        }
-        if (state.isAir())
+        } else
             machine.spendSteam(250);
         level.setBlockAndUpdate(target,
                 ModContent.block("drillbit")
                         .defaultBlockState()
                         .setValue(BlockStateProperties.FACING, direction));
         machine.depth++;
-        Transfer.pushItems(
-                level, pos, direction.getOpposite(), machine.items.view(IoMode.OUTPUT), 64);
+    }
+
+    /** The drill mines as an unenchanted diamond pickaxe. */
+    private static ItemStack tool() {
+        return new ItemStack(Items.DIAMOND_PICKAXE);
+    }
+
+    /**
+     * Ticks to break a block, using vanilla's player formula for the drill's tool: tool speed
+     * over hardness, divided by 30 when the tool can harvest the block or 100 when it cannot.
+     */
+    static int breakTicks(BlockState state, net.minecraft.world.level.Level level, BlockPos pos) {
+        float hardness = state.getDestroySpeed(level, pos);
+        if (hardness <= 0)
+            return 1;
+        ItemStack tool = tool();
+        boolean harvestable =
+                !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
+        float perTick = tool.getDestroySpeed(state) / hardness / (harvestable ? 30f : 100f);
+        return Math.max(1, net.minecraft.util.Mth.ceil(1f / perTick));
     }
 
     static void clearDrill(SteamMachine machine) {
         var level = machine.getLevel();
         var pos = machine.getBlockPos();
         Direction direction = machine.getBlockState().getValue(BlockStateProperties.FACING);
-        for (int i = 1; i <= 64; i++) {
+        for (int i = 1; i <= MAX_RANGE; i++) {
             BlockPos p = pos.relative(direction, i);
             if (!level.hasChunkAt(p) || !level.getBlockState(p).is(ModContent.block("drillbit")))
                 break;

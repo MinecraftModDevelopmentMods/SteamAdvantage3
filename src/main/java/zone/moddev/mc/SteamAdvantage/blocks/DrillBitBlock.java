@@ -26,9 +26,9 @@ public final class DrillBitBlock extends Block {
     protected VoxelShape getShape(
             BlockState s, BlockGetter level, BlockPos p, CollisionContext context) {
         return switch (s.getValue(BlockStateProperties.FACING).getAxis()) {
-            case X -> box(0, 5, 5, 16, 11, 11);
-            case Y -> box(5, 0, 5, 11, 16, 11);
-            case Z -> box(5, 5, 0, 11, 11, 16);
+            case X -> box(0, 4, 4, 16, 12, 12);
+            case Y -> box(4, 0, 4, 12, 16, 12);
+            case Z -> box(4, 4, 0, 12, 12, 16);
         };
     }
     @Override

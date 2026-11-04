@@ -24,7 +24,7 @@ implementation and its relevant gameplay checks are complete.
 
 - [ ] Restore machine-specific comparator signals.
   - SA3 currently reports steam-tank fullness for every machine.
-  - SA2 reported elevator position; drill/furnace/crusher inventory contents;
+  - SA2 reported elevator position; drill/furnace/crusher inventory contents;git
     coal-boiler fuel inventory; geothermal temperature; electric-boiler energy;
     oil-boiler fuel; pump output fluid; and still input fluid.
   - Verify both signal values and comparator updates as machine state changes.

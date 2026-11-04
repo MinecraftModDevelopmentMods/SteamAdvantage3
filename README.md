@@ -19,9 +19,9 @@ They remain separate installed mods; the SteamAdvantage JAR does not embed them.
 python3 scripts/validate_resources.py
 ```
 
-Development builds are versioned `<mod_version>-development`, for example
-`build/libs/SteamAdvantage-3.0.0.121012-development.jar`. Releases are made by pushing a
-Git tag in the `major.minor.bug.mcversion+loader` form (for example `3.0.0.121012`); the
+Local builds use `mod_version` from `gradle.properties`, for example
+`build/libs/SteamAdvantage-3.0.2.121012.jar`. Releases are made by pushing a
+Git tag in the `major.minor.bug.mcversion+loader` form (for example `3.0.2.121012`); the
 publish workflow uses the tag as the version and uploads to GitHub, and to Maven and
 CurseForge when their secrets are configured. GameTests and their fixture datapacks are
 excluded from the release JAR.
