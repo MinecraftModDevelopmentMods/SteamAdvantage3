@@ -32,6 +32,8 @@ public final class SteamMachine
     final EnergyBuffer energy;
     private final MachineSettings settings;
     int burn, totalBurn, depth, elevatorHeight;
+    // 0: drilling, 1: retracting, 2: fully retracted and waiting for reset/track.
+    int drillPhase, drillRetractionTicks;
     float temperature;
     final int[] progress = new int[3];
     net.neoforged.neoforge.fluids.FluidStack pendingDistillation =
@@ -39,6 +41,7 @@ public final class SteamMachine
     int distillationDuration;
     int steam, water = -1, fuel = -1, product = -1;
     boolean raised;
+    private int lastComparatorSignal = -1;
     public SteamMachine(BlockPos pos, BlockState state) {
         this(ModContent.machineType(state), pos, state,
                 ((MachineBlock) state.getBlock()).settings());
@@ -83,6 +86,43 @@ public final class SteamMachine
         return energy;
     }
 
+    /** Signal sources follow SA2; fullness calculations use SA3's active slot layout. */
+    public int comparatorSignal() {
+        return switch (kind) {
+            case "steam_elevator" -> raised ? 15 : 0;
+            case "steam_drill" -> inventorySignal(4, 9);
+            case "steam_furnace" -> inventorySignal(1, 4);
+            case "steam_crusher", "steam_boiler_coal" -> inventorySignal(0, 1);
+            case "steam_boiler_geothermal" -> proportionalSignal(temperature, getMaxTemperature());
+            case "steam_boiler_electric" -> proportionalSignal(energy.stored(), energy.capacity());
+            case "steam_boiler_oil" -> tankSignal(fuel);
+            case "steam_pump" -> tankSignal(product);
+            case "steam_still" -> tankSignal(water);
+            default -> tankSignal(steam);
+        };
+    }
+
+    private int tankSignal(int tank) {
+        return tank < 0 ? 0 : proportionalSignal(
+                fluids.tank(tank).getFluidAmount(), fluids.tank(tank).getCapacity());
+    }
+
+    private int inventorySignal(int first, int end) {
+        double fullness = 0;
+        for (int slot = first; slot < end; slot++) {
+            var stack = items.getStackInSlot(slot);
+            if (!stack.isEmpty())
+                fullness += (double) stack.getCount()
+                        / Math.min(stack.getMaxStackSize(), items.getSlotLimit(slot));
+        }
+        // Inventory signals retain a minimum of 1 for a nonempty measured inventory.
+        return fullness <= 0 ? 0 : Math.max(1, proportionalSignal(fullness, end - first));
+    }
+
+    private static int proportionalSignal(double amount, double capacity) {
+        return capacity <= 0 || amount <= 0 ? 0 : (int) Math.clamp(15 * amount / capacity, 0, 15);
+    }
+
     public void clearDrill() {
         DrillOperation.clearDrill(this);
     }
@@ -121,10 +161,17 @@ public final class SteamMachine
         if (m.product >= 0)
             for (Direction side : Direction.values())
                 Transfer.pushFluids(level, pos, side, m.fluids.view(IoMode.OUTPUT), 100);
-        if (level.getGameTime() % 20 == 0) {
-            m.setChanged();
-            level.updateNeighbourForOutputSignal(pos, state.getBlock());
+        // Storage callbacks already notify comparators through setChanged. Also catch
+        // direct stack mutations, temperature and elevator-position changes each tick.
+        if (!m.isRemoved()) {
+            int signal = state.getAnalogOutputSignal(level, pos);
+            if (signal != m.lastComparatorSignal) {
+                m.lastComparatorSignal = signal;
+                m.setChanged();
+            }
         }
+        if (level.getGameTime() % 20 == 0)
+            m.setChanged();
     }
     private void exportSteam() {
         Direction output = getBlockState().getValue(BlockStateProperties.FACING);
@@ -167,6 +214,8 @@ public final class SteamMachine
             tag.put("PendingDistillation", pendingDistillation.save(registries));
         tag.putInt("DistillationDuration", distillationDuration);
         tag.putInt("Depth", depth);
+        tag.putInt("DrillPhase", drillPhase);
+        tag.putInt("DrillRetractionTicks", drillRetractionTicks);
         tag.putBoolean("Raised", raised);
         tag.putInt("ElevatorHeight", elevatorHeight);
     }
@@ -188,6 +237,8 @@ public final class SteamMachine
         distillationDuration = pendingDistillation.isEmpty()
                 ? 0 : Math.max(1, tag.getInt("DistillationDuration"));
         depth = tag.getInt("Depth");
+        drillPhase = Math.clamp(tag.getInt("DrillPhase"), 0, 2);
+        drillRetractionTicks = Math.clamp(tag.getInt("DrillRetractionTicks"), 0, 3);
         raised = tag.getBoolean("Raised");
         elevatorHeight = tag.getInt("ElevatorHeight");
     }

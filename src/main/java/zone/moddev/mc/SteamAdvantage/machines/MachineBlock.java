@@ -43,10 +43,13 @@ public class MachineBlock
     }
     @Override
     protected void onRemove(BlockState s, Level l, BlockPos p, BlockState next, boolean moving) {
-        if (!s.is(next.getBlock()) && l.getBlockEntity(p) instanceof SteamMachine machine) {
-            if (machine.kind.equals("steam_drill"))
+        if (l.getBlockEntity(p) instanceof SteamMachine machine) {
+            if (machine.kind.equals("steam_drill") && (!s.is(next.getBlock())
+                    || s.getValue(BlockStateProperties.FACING)
+                            != next.getValue(BlockStateProperties.FACING)))
                 machine.clearDrill();
-            machine.items.dropAll(l, p);
+            if (!s.is(next.getBlock()))
+                machine.items.dropAll(l, p);
         }
         super.onRemove(s, l, p, next, moving);
     }
@@ -57,7 +60,7 @@ public class MachineBlock
     @Override
     protected int getAnalogOutputSignal(BlockState s, Level l, BlockPos p) {
         return l.getBlockEntity(p) instanceof SteamMachine m
-                ? 15 * m.fluids.tank(0).getFluidAmount() / m.fluids.tank(0).getCapacity()
+                ? m.comparatorSignal()
                 : 0;
     }
 }

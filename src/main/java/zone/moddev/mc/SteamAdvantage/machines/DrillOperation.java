@@ -5,6 +5,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.SingleRecipeInput;
+import zone.moddev.mc.lib.common.recipes.CrushingRecipe;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -25,18 +27,26 @@ final class DrillOperation {
     static void drill(SteamMachine machine) {
         var level = machine.getLevel();
         var pos = machine.getBlockPos();
-        if (machine.depth >= MAX_RANGE) {
-            followTrack(machine);
-            return;
-        }
         Direction direction = machine.getBlockState().getValue(BlockStateProperties.FACING);
         // Empty the output every tick, so a full inventory can drain and mining resume.
         Transfer.pushItems(
                 level, pos, direction.getOpposite(), machine.items.view(IoMode.OUTPUT), 64);
+        if (machine.drillPhase == 1) {
+            retract(machine, direction);
+            return;
+        }
+        if (machine.drillPhase == 2) {
+            followTrack(machine);
+            return;
+        }
+        if (machine.depth >= MAX_RANGE) {
+            beginRetraction(machine);
+            return;
+        }
         BlockPos target = pos.relative(direction, machine.depth + 1);
         if (!level.isInWorldBounds(target)) {
             // Reached the top or bottom of the world: treat it like bedrock.
-            followTrack(machine);
+            beginRetraction(machine);
             return;
         }
         if (!level.hasChunkAt(target))
@@ -47,25 +57,16 @@ final class DrillOperation {
             return;
         }
         if (state.getDestroySpeed(level, target) < 0 || state.hasBlockEntity()) {
-            followTrack(machine);
+            beginRetraction(machine);
             return;
         }
         // Air, fluids, plants etc. are simply displaced by the pipe rather than mined.
         boolean replace = state.canBeReplaced();
-        // Running short of steam pauses the drill; only redstone retracts it. Retracting
-        // here made a starved drill extend one segment and pull it back every tick.
+        // Steam starvation pauses the drill rather than retracting its existing line.
         if (!machine.hasSteam(replace ? 250 : 100))
             return;
         if (!replace) {
-            int ticks = breakTicks(state, level, target);
-            if (machine.progress[0] < ticks) {
-                machine.spendSteam(100);
-                if (++machine.progress[0] < ticks)
-                    return;
-            }
-            // Fully cut: hold here (without spending steam) until the drops fit.
-            var drops = Block.getDrops(state, (net.minecraft.server.level.ServerLevel) level,
-                    target, null, null, tool());
+            var drops = miningDrops(state, (net.minecraft.server.level.ServerLevel) level, target);
             // Simulate all drops together before altering the world.
             var test = new net.neoforged.neoforge.items.ItemStackHandler(5);
             for (int i = 0; i < 5; i++)
@@ -74,6 +75,13 @@ final class DrillOperation {
                 ItemStack remaining = drop.copy();
                 for (int i = 0; i < 5; i++) remaining = test.insertItem(i, remaining, false);
                 if (!remaining.isEmpty())
+                    return;
+            }
+            // A blocked output must pause before mining consumes steam or progress.
+            int ticks = breakTicks(state, level, target);
+            if (machine.progress[0] < ticks) {
+                machine.spendSteam(100);
+                if (++machine.progress[0] < ticks)
                     return;
             }
             if (!level.destroyBlock(target, false))
@@ -87,6 +95,56 @@ final class DrillOperation {
                         .defaultBlockState()
                         .setValue(BlockStateProperties.FACING, direction));
         machine.depth++;
+    }
+
+    private static java.util.List<ItemStack> miningDrops(BlockState state,
+            net.minecraft.server.level.ServerLevel level, BlockPos target) {
+        // SA2 crushed the block itself, rather than each item in its loot table.
+        var input = new SingleRecipeInput(new ItemStack(state.getBlock()));
+        if (!input.item().isEmpty()) {
+            var recipe = level.getRecipeManager().getRecipeFor(CrushingRecipe.TYPE.get(), input, level);
+            if (recipe.isPresent())
+                return java.util.List.of(recipe.get().value().assemble(input, level.registryAccess()));
+        }
+        return Block.getDrops(state, level, target, null, null, tool());
+    }
+
+    private static void beginRetraction(SteamMachine machine) {
+        machine.drillPhase = 1;
+        machine.drillRetractionTicks = 0;
+        machine.progress[0] = 0;
+        machine.getLevel().playSound(null, machine.getBlockPos(),
+                net.minecraft.sounds.SoundEvents.IRON_DOOR_CLOSE,
+                net.minecraft.sounds.SoundSource.BLOCKS, .8f, .7f);
+        machine.setChanged();
+    }
+
+    private static void retract(SteamMachine machine, Direction direction) {
+        var level = machine.getLevel();
+        if (machine.depth > 0) {
+            BlockPos tip = machine.getBlockPos().relative(direction, machine.depth);
+            // Never load chunks or lose our place while a tip is unavailable.
+            if (!level.hasChunkAt(tip)) return;
+            if (++machine.drillRetractionTicks < 4) return;
+            machine.drillRetractionTicks = 0;
+            if (level.getBlockState(tip).is(ModContent.block("drillbit")))
+                zone.moddev.mc.SteamAdvantage.blocks.DrillBitBlock.retractSegment(level, tip);
+            machine.depth--;
+            var pos = machine.getBlockPos();
+            level.playSound(null, pos, net.minecraft.sounds.SoundEvents.PISTON_CONTRACT,
+                    net.minecraft.sounds.SoundSource.BLOCKS, .5f, 1.2f);
+            ((net.minecraft.server.level.ServerLevel) level).sendParticles(
+                    net.minecraft.core.particles.ParticleTypes.CLOUD,
+                    pos.getX() + .5, pos.getY() + 1, pos.getZ() + .5, 3, .2, .1, .2, .01);
+        }
+        if (machine.depth == 0) {
+            machine.drillPhase = 2;
+            level.playSound(null, machine.getBlockPos(),
+                    net.minecraft.sounds.SoundEvents.IRON_TRAPDOOR_CLOSE,
+                    net.minecraft.sounds.SoundSource.BLOCKS, .8f, 1);
+            followTrack(machine);
+        }
+        machine.setChanged();
     }
 
     /** The drill mines as an unenchanted diamond pickaxe. */
@@ -121,6 +179,8 @@ final class DrillOperation {
         }
         machine.depth = 0;
         machine.progress[0] = 0;
+        machine.drillPhase = 0;
+        machine.drillRetractionTicks = 0;
     }
 
     static void followTrack(SteamMachine machine) {

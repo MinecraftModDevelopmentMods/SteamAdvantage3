@@ -14,6 +14,10 @@ import zone.moddev.mc.SteamAdvantage.items.MusketItem;
         modid = SteamAdvantage.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class ClientEvents {
     @SubscribeEvent
+    static void renderers(net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event) {
+        event.registerBlockEntityRenderer(ModContent.drillBitType(), DrillBitRenderer::new);
+    }
+    @SubscribeEvent
     static void setup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             var musket = ModContent.item("musket");

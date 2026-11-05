@@ -1,10 +1,11 @@
 {
-  "homepage": "https://www.curseforge.com/minecraft/mc-mods/steamadvantage",
+  "homepage": "https://www.curseforge.com/minecraft/mc-mods/steam-advantage-revived",
   "promos": {
-    "1.21.1-latest": "3.0.2.121012",
-    "1.21.1-recommended": "3.0.2.121012"
+    "1.21.1-latest": "3.0.3.121012",
+    "1.21.1-recommended": "3.0.3.121012"
   },
   "1.21.1": {
+    "3.0.3.121012": "Restore villager offers, machine-specific comparator signals, drill crushing and rotating drill bits, connected drill-bit cleanup, gradual end-of-line retraction, and musket repair, tooltips, ammunition compatibility, block interactions, particles and camera kick.",
     "3.0.2.121012": "Steam drill: visible drill pipe, diamond-pickaxe mining speeds, 128-block range to reach modern bedrock, no longer retracts or flickers when short on steam, and no longer stalls with a full inventory.",
     "3.0.0.121012": "Initial NeoForge 1.21.1 release."
   }

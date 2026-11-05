@@ -11,5 +11,10 @@
       "minecraft:mineable/pickaxe",
       "minecraft:needs_iron_tool"
     ]
+  },
+  "part": {
+    "block_entity": {
+      "factory": "steamadvantage:drillbit"
+    }
   }
 }

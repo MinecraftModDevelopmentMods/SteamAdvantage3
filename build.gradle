@@ -72,7 +72,7 @@ tasks.named('processResources', ProcessResources) {
             mod_version: project.version,
             mod_authors: mod_authors,
             mod_description: mod_description,
-            curseforge_url: "https://www.curseforge.com/minecraft/mc-mods/${mod_id}",
+            curseforge_url: "https://www.curseforge.com/minecraft/mc-mods/${curseforge_slug}",
             issue_url: issue_url,
             update_url: update_url
     ]

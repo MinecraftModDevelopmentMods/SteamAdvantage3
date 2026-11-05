@@ -11,12 +11,64 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import zone.moddev.mc.SteamAdvantage.init.ModContent;
+import zone.moddev.mc.SteamAdvantage.machines.SteamMachine;
 
-public final class DrillBitBlock extends Block {
-    public DrillBitBlock(Properties properties) {
-        super(properties.noOcclusion());
+public final class DrillBitBlock extends zone.moddev.mc.lib.common.runtime.MaterialEntityBlock<DrillBitBlockEntity> {
+    // Removing a segment invokes onRemove again; keep long lines off the call stack.
+    private static final ThreadLocal<Boolean> CLEARING = ThreadLocal.withInitial(() -> false);
+
+    /** Controlled retraction must not trigger the broken-line cleanup. */
+    public static void retractSegment(Level level, BlockPos pos) {
+        boolean previous = CLEARING.get();
+        CLEARING.set(true);
+        try {
+            level.removeBlock(pos, false);
+        } finally {
+            if (previous) CLEARING.set(true);
+            else CLEARING.remove();
+        }
+    }
+
+    @Override
+    protected void onRemove(BlockState state, Level level, BlockPos pos,
+            BlockState next, boolean moving) {
+        if (!level.isClientSide && !state.is(next.getBlock()) && !CLEARING.get()) {
+            CLEARING.set(true);
+            try {
+                Direction facing = state.getValue(BlockStateProperties.FACING);
+                for (Direction direction : new Direction[] {facing, facing.getOpposite()}) {
+                    BlockPos cursor = pos.relative(direction);
+                    while (level.hasChunkAt(cursor) && level.getBlockState(cursor).is(this)) {
+                        level.removeBlock(cursor, false);
+                        cursor = cursor.relative(direction);
+                    }
+                    if (level.hasChunkAt(cursor)
+                            && level.getBlockState(cursor).is(
+                                    ModContent.block("steam_drill"))
+                            && level.getBlockState(cursor).getValue(BlockStateProperties.FACING)
+                                    == direction.getOpposite()
+                            && level.getBlockEntity(cursor) instanceof SteamMachine drill) {
+                        drill.clearDrill();
+                        drill.setChanged();
+                    }
+                }
+            } finally {
+                CLEARING.remove();
+            }
+        }
+        super.onRemove(state, level, pos, next, moving);
+    }
+
+    public DrillBitBlock(Properties properties,
+            zone.moddev.mc.lib.api.BlockEntityBinding<DrillBitBlockEntity> binding) {
+        super(properties.noOcclusion(), binding.prepared(), binding.type());
         registerDefaultState(
                 stateDefinition.any().setValue(BlockStateProperties.FACING, Direction.NORTH));
+    }
+    @Override
+    protected net.minecraft.world.level.block.RenderShape getRenderShape(BlockState state) {
+        return net.minecraft.world.level.block.RenderShape.ENTITYBLOCK_ANIMATED;
     }
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> b) {

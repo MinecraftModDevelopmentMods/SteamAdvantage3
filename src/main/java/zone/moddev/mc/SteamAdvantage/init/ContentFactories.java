@@ -1,6 +1,7 @@
 package zone.moddev.mc.SteamAdvantage.init;
 
 import com.mojang.serialization.Codec;
+import com.mojang.datafixers.util.Unit;
 import java.util.function.Function;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -8,6 +9,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import zone.moddev.mc.SteamAdvantage.blocks.DrillBitBlock;
+import zone.moddev.mc.SteamAdvantage.blocks.DrillBitBlockEntity;
 import zone.moddev.mc.SteamAdvantage.blocks.PlatformBlock;
 import zone.moddev.mc.SteamAdvantage.blocks.PumpShaftBlock;
 import zone.moddev.mc.SteamAdvantage.items.MusketItem;
@@ -43,7 +45,28 @@ final class ContentFactories {
                     }
                 });
         block(api, "platform", PlatformBlock.class, PlatformBlock::new);
-        block(api, "drillbit", DrillBitBlock.class, DrillBitBlock::new);
+        api.registerBlockImplementation(ModContent.id("drillbit"), new BlockImplementation<DrillBitBlock>() {
+            public Class<DrillBitBlock> blockClass() { return DrillBitBlock.class; }
+            public DrillBitBlock create(MMDMaterial material, MMDBlock definition) {
+                throw new IllegalStateException("Drill bit requires BlockContext");
+            }
+            public DrillBitBlock create(BlockContext context) {
+                return new DrillBitBlock(context.properties(),
+                        context.blockEntity().orElseThrow().as(DrillBitBlockEntity.class));
+            }
+        });
+        zone.moddev.mc.lib.util.Registries.BLOCK_ENTITY_FACTORIES.register(
+                ModContent.id("drillbit"), new BlockEntityFactory<DrillBitBlockEntity, Unit>() {
+                    public Class<DrillBitBlockEntity> blockEntityClass() { return DrillBitBlockEntity.class; }
+                    public Codec<Unit> settingsCodec() {
+                        return Codec.unit(Unit.INSTANCE);
+                    }
+                    public DrillBitBlockEntity create(BlockEntityType<DrillBitBlockEntity> type,
+                            BlockPos pos, net.minecraft.world.level.block.state.BlockState state,
+                            MMDBlockEntity definition, Unit settings) {
+                        return new DrillBitBlockEntity(type, pos, state);
+                    }
+                });
         block(api, "pump_shaft", PumpShaftBlock.class, PumpShaftBlock::new);
         api.registerItemImplementation(
                 ModContent.id("musket"), new ItemImplementation<MusketItem>() {

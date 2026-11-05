@@ -17,6 +17,8 @@ import net.neoforged.neoforge.common.conditions.ICondition;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 import zone.moddev.mc.SteamAdvantage.SteamAdvantage;
+import zone.moddev.mc.SteamAdvantage.blocks.DrillBitBlockEntity;
+import zone.moddev.mc.SteamAdvantage.machines.MachineBlock;
 import zone.moddev.mc.SteamAdvantage.machines.SteamMachine;
 import zone.moddev.mc.SteamAdvantage.recipes.RecipeModeCondition;
 import zone.moddev.mc.lib.MMDLib;
@@ -61,6 +63,11 @@ public final class ModContent {
                 .get(BuiltInRegistries.BLOCK.getKey(state.getBlock()))
                 .get();
     }
+    @SuppressWarnings("unchecked")
+    public static BlockEntityType<DrillBitBlockEntity> drillBitType() {
+        return (BlockEntityType<DrillBitBlockEntity>)
+                runtime().blockEntityTypes().get(id("drillbit")).get();
+    }
     public static void register(IEventBus bus) {
         CONDITIONS.register("recipe_mode", () -> RecipeModeCondition.CODEC);
         CONDITIONS.register(bus);
@@ -85,6 +92,7 @@ public final class ModContent {
     @SuppressWarnings("unchecked")
     private static void capabilities(RegisterCapabilitiesEvent event) {
         runtime.blockEntityTypes().forEach((id, holder) -> {
+            if (!(block(id.getPath()) instanceof MachineBlock)) return;
             var type = (BlockEntityType<SteamMachine>) holder.get();
             MachineCapabilities.items(event, type, SteamMachine::items);
             MachineCapabilities.fluids(event, type, SteamMachine::fluids);
