@@ -598,6 +598,73 @@ public final class SteamGameTests {
         h.assertTrue(restored.fluids.tank(0).getFluidAmount() == 123456, "Fluid persistence");
         h.succeed();
     }
+    private static net.neoforged.neoforge.items.IItemHandler itemsAt(
+            GameTestHelper h, SteamMachine m, Direction side) {
+        return h.getLevel().getCapability(Capabilities.ItemHandler.BLOCK, m.getBlockPos(), side);
+    }
+    private static net.neoforged.neoforge.fluids.capability.IFluidHandler fluidsAt(
+            GameTestHelper h, SteamMachine m, Direction side) {
+        return h.getLevel().getCapability(Capabilities.FluidHandler.BLOCK, m.getBlockPos(), side);
+    }
+    @GameTest(template = "empty")
+    public static void defaultAutomationSidesMatchRoles(GameTestHelper h) {
+        var furnace = place(h, "steam_furnace", 1, 2, 1);
+        var boiler = place(h, "steam_boiler_electric", 4, 2, 1);
+        var tank = place(h, "steam_tank", 1, 2, 4);
+        furnace.items.setStackInSlot(4, new ItemStack(Items.IRON_INGOT, 6));
+        for (var side : Direction.values()) {
+            var items = itemsAt(h, furnace, side);
+            h.assertTrue(items.insertItem(0, new ItemStack(Items.COAL), true).isEmpty(),
+                    "Fuel accepted from " + side);
+            h.assertTrue(items.insertItem(1, new ItemStack(Items.RAW_IRON), true).isEmpty(),
+                    "Smeltable input accepted from " + side);
+            h.assertTrue(!items.insertItem(4, new ItemStack(Items.IRON_INGOT), true).isEmpty(),
+                    "Output refuses insertion from " + side);
+            h.assertTrue(items.extractItem(4, 1, true).getCount() == 1,
+                    "Output extractable from " + side);
+            var water = fluidsAt(h, boiler, side);
+            h.assertTrue(water.fill(new FluidStack(Fluids.WATER, 100), FluidAction.SIMULATE) == 100,
+                    "Boiler water input from " + side);
+            h.assertTrue(water.fill(steam(100), FluidAction.SIMULATE) == 0,
+                    "Boiler steam output refuses filling from " + side);
+            var energy = h.getLevel().getCapability(
+                    Capabilities.EnergyStorage.BLOCK, boiler.getBlockPos(), side);
+            h.assertTrue(energy != null && energy.receiveEnergy(10, true) == 10,
+                    "Electric boiler accepts FE from " + side);
+            h.assertTrue(fluidsAt(h, tank, side).fill(steam(100), FluidAction.SIMULATE) == 100,
+                    "Tank accepts steam from " + side);
+        }
+        h.assertTrue(h.getLevel().getCapability(Capabilities.EnergyStorage.BLOCK,
+                             tank.getBlockPos(), Direction.UP) == null,
+                "Unpowered machines expose no energy");
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void automationSideConfigGatesAndPersists(GameTestHelper h) {
+        var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
+        var automation = boiler.automation();
+        var water = automation.group(automation.index("water"));
+        var facing = boiler.facing();
+        water.sides().set(
+                zone.moddev.mc.lib.api.capabilities.RelativeFace.of(facing, Direction.UP),
+                zone.moddev.mc.lib.api.capabilities.IoMode.DISABLED);
+        h.assertTrue(fluidsAt(h, boiler, Direction.UP)
+                                .fill(new FluidStack(Fluids.WATER, 100), FluidAction.SIMULATE) == 0,
+                "Disabled face refuses water");
+        h.assertTrue(fluidsAt(h, boiler, Direction.DOWN)
+                                .fill(new FluidStack(Fluids.WATER, 100), FluidAction.SIMULATE) == 100,
+                "Other faces still accept water");
+        var saved = boiler.saveWithoutMetadata(h.getLevel().registryAccess());
+        var restored = new SteamMachine(boiler.getBlockPos(), boiler.getBlockState());
+        restored.loadWithComponents(saved, h.getLevel().registryAccess());
+        var restoredWater = restored.automation().group(restored.automation().index("water"));
+        h.assertTrue(restoredWater.mode(Direction.UP)
+                        == zone.moddev.mc.lib.api.capabilities.IoMode.DISABLED
+                        && restoredWater.mode(Direction.DOWN)
+                                == zone.moddev.mc.lib.api.capabilities.IoMode.INPUT,
+                "Side configuration persists");
+        h.succeed();
+    }
     @GameTest(template = "empty")
     public static void legacySaveLayoutLoads(GameTestHelper h) {
         // SA3 before the BaseMachine move saved every storage at the top level, energy as "Energy".

@@ -24,7 +24,7 @@ import zone.moddev.mc.SteamAdvantage.recipes.RecipeModeCondition;
 import zone.moddev.mc.lib.MMDLib;
 import zone.moddev.mc.lib.api.MaterialExtensions;
 import zone.moddev.mc.lib.api.capabilities.IoMode;
-import zone.moddev.mc.lib.api.capabilities.MachineCapabilities;
+import zone.moddev.mc.lib.api.automation.ResourceType;
 import zone.moddev.mc.lib.common.runtime.RuntimeContentRegistrar;
 import zone.moddev.mc.poweradvantage.blocks.FluidPipeBlock;
 
@@ -94,13 +94,23 @@ public final class ModContent {
         runtime.blockEntityTypes().forEach((id, holder) -> {
             if (!(block(id.getPath()) instanceof MachineBlock)) return;
             var type = (BlockEntityType<SteamMachine>) holder.get();
-            MachineCapabilities.items(event, type, SteamMachine::items);
-            MachineCapabilities.fluids(event, type, SteamMachine::fluids);
+            // Each face follows the machine's MMDLib automation groups; a null side keeps full
+            // role-based access, as before.
+            event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, type,
+                    (be, side) -> side == null
+                            ? be.items().view(IoMode.BOTH)
+                            : be.items().view(slot -> be.automation().mode(
+                                    ResourceType.ITEMS, slot, side)));
+            event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, type,
+                    (be, side) -> side == null
+                            ? be.fluids().view(IoMode.BOTH)
+                            : be.fluids().view(tank -> be.automation().mode(
+                                    ResourceType.FLUIDS, tank, side)));
             event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, type,
-                    (be, side)
-                            -> be.kind().equals("steam_boiler_electric")
-                            ? be.energy().view(IoMode.INPUT)
-                            : null);
+                    (be, side) -> !be.kind().equals("steam_boiler_electric") ? null
+                            : side == null ? be.energy().view(IoMode.INPUT)
+                            : be.energy().view(() -> be.automation().mode(
+                                    ResourceType.ENERGY, 0, side)));
         });
         FluidPipeBlock.registerCapabilities(
                 event, (FluidPipeBlock) block("steam_pipe"), (FluidPipeBlock) block("steam_track"));

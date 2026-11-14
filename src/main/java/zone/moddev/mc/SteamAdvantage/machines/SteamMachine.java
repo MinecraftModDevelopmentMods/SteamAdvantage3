@@ -15,7 +15,11 @@ import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import zone.moddev.mc.SteamAdvantage.config.SteamConfig;
 import zone.moddev.mc.SteamAdvantage.init.ModContent;
+import net.minecraft.network.chat.Component;
 import zone.moddev.mc.lib.api.automation.AutomationInventory;
+import zone.moddev.mc.lib.api.automation.ResourceGroup;
+import zone.moddev.mc.lib.api.automation.ResourceType;
+import zone.moddev.mc.lib.api.capabilities.SideConfig;
 import zone.moddev.mc.lib.api.capabilities.EnergyBuffer;
 import zone.moddev.mc.lib.api.capabilities.FluidStorage;
 import zone.moddev.mc.lib.api.capabilities.IoMode;
@@ -24,6 +28,7 @@ import zone.moddev.mc.lib.api.capabilities.Role;
 import zone.moddev.mc.lib.api.capabilities.Transfer;
 import zone.moddev.mc.lib.machine.neoforge.BaseMachine;
 import zone.moddev.mc.lib.machine.neoforge.MachineInventoryLifecycle;
+import zone.moddev.mc.lib.machine.neoforge.MachineResources;
 import zone.moddev.mc.poweradvantage.api.distillation.DistillingRecipe;
 
 /**
@@ -56,6 +61,7 @@ public final class SteamMachine extends BaseMachine {
     boolean raised;
     private int lastComparatorSignal = -1;
     private final MachineInventoryLifecycle inventory;
+    private final MachineResources resources;
     public SteamMachine(BlockPos pos, BlockState state) {
         this(ModContent.machineType(state), pos, state,
                 ((MachineBlock) state.getBlock()).settings());
@@ -86,10 +92,81 @@ public final class SteamMachine extends BaseMachine {
         if (kind.equals("steam_still"))
             water = fluids.addTank(settings.waterCapacity(), Role.INPUT,
                     f -> getLevel() != null && DistillingRecipe.accepts(getLevel(), f));
-        // No automation groups yet: SteamAdvantage still registers its own capabilities.
-        inventory = genericInventory(new AutomationInventory(this, List.of()))
+        resources = automationGroups();
+        inventory = genericInventory(resources.automation())
                             .items("Items", items)
                             .fluids("Fluids", fluids);
+    }
+
+    /**
+     * MMDLib automation groups for this machine's storage. Every face of a group starts at the
+     * group's role, which is exactly the access SA3 machines always exposed on every side; the
+     * capabilities registered in ModContent read each face's mode from these groups.
+     */
+    private MachineResources automationGroups() {
+        var groups = new MachineResources(this, this::facing);
+        switch (kind) {
+            case "steam_furnace" -> {
+                items(groups, "fuel", "screen.steamadvantage.fuel", 0xE88D24, IoMode.INPUT, 0);
+                items(groups, "input", "screen.steamadvantage.input", 0x5080D0, IoMode.INPUT, 1, 2, 3);
+                items(groups, "output", "screen.steamadvantage.output", 0xD08050, IoMode.OUTPUT,
+                        4, 5, 6, 7, 8);
+            }
+            case "steam_boiler_coal" ->
+                items(groups, "fuel", "screen.steamadvantage.fuel", 0xE88D24, IoMode.INPUT, 0);
+            case "steam_crusher" -> {
+                items(groups, "input", "screen.steamadvantage.input", 0x5080D0, IoMode.INPUT, 0);
+                items(groups, "output", "screen.steamadvantage.output", 0xD08050, IoMode.OUTPUT,
+                        4, 5, 6, 7, 8);
+            }
+            case "steam_drill" ->
+                items(groups, "output", "screen.steamadvantage.output", 0xD08050, IoMode.OUTPUT,
+                        4, 5, 6, 7, 8);
+            default -> {
+            }
+        }
+        fluid(groups, "steam", "screen.steamadvantage.steam", 0xC8C8C8, steam);
+        fluid(groups, kind.equals("steam_still") ? "input" : "water",
+                kind.equals("steam_still") ? "screen.steamadvantage.input"
+                                           : "screen.steamadvantage.water",
+                0x3F76E4, water);
+        fluid(groups, "fuel", "screen.steamadvantage.fuel", 0x4A3A2A, fuel);
+        fluid(groups, "product", "screen.steamadvantage.product", 0x70A050, product);
+        if (powerStorage() != null)
+            groups.energy(new ResourceGroup<>("energy",
+                                  Component.translatable("screen.steamadvantage.energy"),
+                                  0xD03030, ResourceType.ENERGY, IoMode.INPUT, List.of(0),
+                                  List.of(), new SideConfig(IoMode.INPUT)),
+                    energy);
+        return groups.build();
+    }
+
+    private void items(MachineResources groups, String id, String name, int colour, IoMode mode,
+            Integer... slots) {
+        groups.items(new ResourceGroup<>(id, Component.translatable(name), colour,
+                             ResourceType.ITEMS, mode, List.of(slots), List.of(),
+                             new SideConfig(mode)),
+                items);
+    }
+
+    private void fluid(MachineResources groups, String id, String name, int colour, int tank) {
+        if (tank < 0)
+            return;
+        IoMode mode = switch (fluids.role(tank)) {
+            case INPUT -> IoMode.INPUT;
+            case OUTPUT -> IoMode.OUTPUT;
+            case STORAGE -> IoMode.BOTH;
+            case MANUAL -> IoMode.DISABLED;
+        };
+        groups.fluids(new ResourceGroup<>(id, Component.translatable(name), colour,
+                              ResourceType.FLUIDS, mode, List.of(tank), List.of(),
+                              new SideConfig(mode)),
+                fluids);
+    }
+
+    /** Per-face automation settings; capabilities and MMDLib transfers both follow them. */
+    public AutomationInventory automation() {
+        return resources.automation();
     }
 
     @Override

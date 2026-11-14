@@ -56,8 +56,13 @@ Remaining SteamAdvantage-side code that MMDLib has no equivalent for: the compar
 `MachineBlock` (MMDLib's comparator support does not yet read block-entity getters) and the
 fluid-container interaction above. Moving the machines to MMDLib's XML machine definitions, as
 Power Advantage 3.2 has, waits on MMDLib support for six-way facing (the drill) and for
-processor-supplied slot and tank filters; capability registration also still belongs to
-SteamAdvantage rather than MMDLib's automation groups.
+processor-supplied slot and tank filters.
+
+Each machine also declares MMDLib automation groups (`SteamMachine.automationGroups`): item
+fuel/input/output groups where a machine has them, and steam, water or input, fuel and product
+tanks. Every face of a group starts at the group's role, which matches the access SA3 always
+exposed. The item, fluid and energy capabilities registered in `ModContent` read each face's mode
+from these groups, so side settings gate pipes and hoppers and are saved under `automation`.
 
 ## Verification
 
