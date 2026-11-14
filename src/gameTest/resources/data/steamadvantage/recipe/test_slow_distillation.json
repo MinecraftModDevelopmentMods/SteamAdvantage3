@@ -1,6 +1,10 @@
 {
   "type": "poweradvantage:distilling",
-  "input": { "fluid": "minecraft:water", "amount": 1000 },
-  "output": { "id": "minecraft:lava", "amount": 100 },
-  "ticks": 20
+  "inputs": {
+    "input": [{ "fluids": "minecraft:water", "amount": 1000 }]
+  },
+  "outputs": {
+    "output": [{ "fluid": { "id": "minecraft:lava", "amount": 100 } }]
+  },
+  "time": 20
 }

@@ -8,10 +8,10 @@
       <group label="screen.steamadvantage.input" padding="4">
         <gauge id="water" orientation="vertical" length="64" value="#getWaterTank" max="#getWaterCapacity" tooltip="screen.steamadvantage.water_amount" />
       </group>
+      <progress value="#getProgress" max="#getProgressMax" tooltip="screen.steamadvantage.progress_amount" />
       <group label="screen.steamadvantage.product" padding="4">
         <gauge id="product" orientation="vertical" length="64" value="#getProductTank" max="#getProductCapacity" tooltip="screen.steamadvantage.product_amount" />
       </group>
     </hbox>
-    <progress value="#getProgress" max="#getProgressMax" tooltip="screen.steamadvantage.progress_amount" />
   </vbox>
 </screen>

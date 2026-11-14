@@ -598,6 +598,42 @@ public final class SteamGameTests {
         h.assertTrue(restored.fluids.tank(0).getFluidAmount() == 123456, "Fluid persistence");
         h.succeed();
     }
+    @GameTest(template = "empty")
+    public static void legacySaveLayoutLoads(GameTestHelper h) {
+        // SA3 before the BaseMachine move saved every storage at the top level, energy as "Energy".
+        var boiler = place(h, "steam_boiler_electric", 2, 2, 2);
+        boiler.fluids.fill(new FluidStack(Fluids.WATER, 777), FluidAction.EXECUTE);
+        boiler.energy.setStored(1234);
+        boiler.burn = 17;
+        var saved = boiler.saveWithoutMetadata(h.getLevel().registryAccess());
+        h.assertTrue(saved.contains("energy") && saved.contains("Items") && saved.contains("Fluids"),
+                "Current layout keeps Items/Fluids and uses MMDLib's energy key");
+        saved.put("Energy", saved.get("energy"));
+        saved.remove("energy");
+        saved.remove("automation");
+        saved.remove("features");
+        var restored = new SteamMachine(boiler.getBlockPos(), boiler.getBlockState());
+        restored.loadWithComponents(saved, h.getLevel().registryAccess());
+        h.assertTrue(restored.energy.stored() == 1234, "Legacy Energy key is migrated");
+        h.assertTrue(restored.fluids.tank(1).getFluidAmount() == 777, "Legacy fluids load");
+        h.assertTrue(restored.burn == 17, "Top-level machine state loads");
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void brokenMachineDropsItemsOnce(GameTestHelper h) {
+        var crusher = place(h, "steam_crusher", 2, 2, 2);
+        crusher.items.setStackInSlot(0, new ItemStack(Items.COBBLESTONE, 5));
+        crusher.items.setStackInSlot(4, new ItemStack(Items.GRAVEL, 3));
+        h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
+        var area = new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(2, 2, 2))).inflate(2);
+        var drops = h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area);
+        int cobble = drops.stream().filter(e -> e.getItem().is(Items.COBBLESTONE))
+                .mapToInt(e -> e.getItem().getCount()).sum();
+        int gravel = drops.stream().filter(e -> e.getItem().is(Items.GRAVEL))
+                .mapToInt(e -> e.getItem().getCount()).sum();
+        h.assertTrue(cobble == 5 && gravel == 3, "Contents drop exactly once: " + cobble + "/" + gravel);
+        h.succeed();
+    }
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void coalBoilerAndRedstone(GameTestHelper h) {
         var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
@@ -762,25 +798,26 @@ public final class SteamGameTests {
             h.succeed();
         });
     }
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = 140)
     public static void distillationUsesPowerAdvantageDefaultRecipe(GameTestHelper h) {
+        // PA 3.2's built-in poweradvantage:distilling_refined_oil: 100 mB crude -> 50 mB refined in 100 ticks.
         var still = place(h, "steam_still", 2, 2, 2);
         var crudeOil = zone.moddev.mc.poweradvantage.init.Fluids.CRUDE_OIL.get();
         var refinedOil = zone.moddev.mc.poweradvantage.init.Fluids.REFINED_OIL.get();
         h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
         still.fluids.tank(0).fill(steam(150), FluidAction.EXECUTE);
-        still.fluids.tank(2).fill(new FluidStack(crudeOil, 2), FluidAction.EXECUTE);
-        h.assertTrue(still.fluids.tank(2).getFluidAmount() == 2,
+        still.fluids.tank(2).fill(new FluidStack(crudeOil, 100), FluidAction.EXECUTE);
+        h.assertTrue(still.fluids.tank(2).getFluidAmount() == 100,
                 "PA3's default crude-oil input is accepted");
         h.runAfterDelay(1, () -> {
             h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
                     "Running still melts snow above it");
             h.assertTrue(still.fluids.tank(2).isEmpty(), "Input is consumed when operation starts");
             h.assertTrue(still.fluids.tank(1).isEmpty(), "Output waits for recipe duration");
-            h.assertTrue(still.getProgress() == 1 && still.getProgressMax() == 2,
+            h.assertTrue(still.getProgress() == 1 && still.getProgressMax() == 100,
                     "PA3 recipe duration drives progress");
-            h.runAfterDelay(1, () -> {
-                h.assertTrue(still.fluids.tank(1).getFluidAmount() == 1
+            h.runAfterDelay(99, () -> {
+                h.assertTrue(still.fluids.tank(1).getFluidAmount() == 50
                                 && still.fluids.tank(1).getFluid().getFluid() == refinedOil,
                         "PA3's built-in recipe converts crude oil to refined oil");
                 h.assertTrue(still.fluids.tank(0).isEmpty(), "Steam is charged once per operation");
@@ -990,7 +1027,11 @@ public final class SteamGameTests {
         h.assertTrue(!menu.slots.get(4).mayPlace(new ItemStack(Items.GRAVEL)),
                 "Output role refuses insertion");
         player.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 3));
-        menu.quickMoveStack(player, menu.slots.size() - 9);
+        // MMDLib 2.0.2 also adds armor and offhand slots, so locate hotbar slot 0 directly.
+        int hotbar = menu.slots.stream()
+                .filter(slot -> slot.container == player.getInventory() && slot.getContainerSlot() == 0)
+                .findFirst().orElseThrow().index;
+        menu.quickMoveStack(player, hotbar);
         h.assertTrue(crusher.items().getStackInSlot(0).getCount() == 3,
                 "Shift-click follows declared input");
         crusher.items().setStackInSlot(4, new ItemStack(Items.GRAVEL, 2));

@@ -7,7 +7,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
+import java.util.List;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -15,17 +15,30 @@ import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import zone.moddev.mc.SteamAdvantage.config.SteamConfig;
 import zone.moddev.mc.SteamAdvantage.init.ModContent;
+import zone.moddev.mc.lib.api.automation.AutomationInventory;
 import zone.moddev.mc.lib.api.capabilities.EnergyBuffer;
 import zone.moddev.mc.lib.api.capabilities.FluidStorage;
 import zone.moddev.mc.lib.api.capabilities.IoMode;
 import zone.moddev.mc.lib.api.capabilities.ItemStorage;
 import zone.moddev.mc.lib.api.capabilities.Role;
 import zone.moddev.mc.lib.api.capabilities.Transfer;
+import zone.moddev.mc.lib.machine.neoforge.BaseMachine;
+import zone.moddev.mc.lib.machine.neoforge.MachineInventoryLifecycle;
 import zone.moddev.mc.poweradvantage.api.distillation.DistillingRecipe;
 
-/** Shared persisted machine storage. One steam unit is represented by 100 mB. */
-public final class SteamMachine
-        extends BlockEntity implements zone.moddev.mc.lib.gui.runtime.ScreenHost {
+/**
+ * Shared persisted machine storage. One steam unit is represented by 100 mB.
+ *
+ * <p>Built on MMDLib's {@link BaseMachine}, which owns storage persistence, the feature host,
+ * screen stats and warnings, while SteamAdvantage keeps its own block (comparator output,
+ * six-way facing, slot and tank filters) and its hand-written machine behaviour.
+ *
+ * <p>Save layout: items and fluids stay under the {@code Items} and {@code Fluids} keys SA3
+ * always used. The electric boiler's buffer moves to MMDLib's {@code energy} key; older saves'
+ * {@code Energy} is still read. Machine state ({@code Burn}, {@code Depth} and so on) remains
+ * top-level, through {@link #saveMachineData} and {@link #loadMachineData}.
+ */
+public final class SteamMachine extends BaseMachine {
     final String kind;
     final ItemStorage items;
     final FluidStorage fluids = new FluidStorage().onChange(this::setChanged);
@@ -42,6 +55,7 @@ public final class SteamMachine
     int steam, water = -1, fuel = -1, product = -1;
     boolean raised;
     private int lastComparatorSignal = -1;
+    private final MachineInventoryLifecycle inventory;
     public SteamMachine(BlockPos pos, BlockState state) {
         this(ModContent.machineType(state), pos, state,
                 ((MachineBlock) state.getBlock()).settings());
@@ -72,7 +86,28 @@ public final class SteamMachine
         if (kind.equals("steam_still"))
             water = fluids.addTank(settings.waterCapacity(), Role.INPUT,
                     f -> getLevel() != null && DistillingRecipe.accepts(getLevel(), f));
+        // No automation groups yet: SteamAdvantage still registers its own capabilities.
+        inventory = genericInventory(new AutomationInventory(this, List.of()))
+                            .items("Items", items)
+                            .fluids("Fluids", fluids);
     }
+
+    @Override
+    protected EnergyBuffer powerStorage() {
+        return settings.energyCapacity() > 0 ? energy : null;
+    }
+
+    @Override
+    protected MachineInventoryLifecycle machineInventory() {
+        return inventory;
+    }
+
+    /**
+     * Fluids left in a broken machine are discarded, as they always were; its items are
+     * dropped by MMDLib's lifecycle.
+     */
+    @Override
+    protected void recoverResources(Level level, BlockPos pos, CompoundTag payload) {}
     public String kind() {
         return kind;
     }
@@ -128,6 +163,15 @@ public final class SteamMachine
     }
 
     public static void tick(Level level, BlockPos pos, BlockState state, SteamMachine m) {
+        m.serverTick();
+    }
+
+    @Override
+    protected void afterMachineTick() {
+        tickMachine(level, worldPosition, getBlockState(), this);
+    }
+
+    private static void tickMachine(Level level, BlockPos pos, BlockState state, SteamMachine m) {
         boolean powered = level.hasNeighborSignal(pos);
         boolean running = false;
         if (powered && m.kind.equals("steam_drill"))
@@ -201,11 +245,7 @@ public final class SteamMachine
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries);
-        tag.put("Items", items.serializeNBT(registries));
-        tag.put("Fluids", fluids.serializeNBT(registries));
-        tag.put("Energy", energy.serializeNBT(registries));
+    protected void saveMachineData(CompoundTag tag, HolderLookup.Provider registries) {
         tag.putInt("Burn", burn);
         tag.putInt("TotalBurn", totalBurn);
         tag.putFloat("Temperature", temperature);
@@ -220,11 +260,10 @@ public final class SteamMachine
         tag.putInt("ElevatorHeight", elevatorHeight);
     }
     @Override
-    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.loadAdditional(tag, registries);
-        items.deserializeNBT(registries, tag.getCompound("Items"));
-        fluids.deserializeNBT(registries, tag.getCompound("Fluids"));
-        energy.deserializeNBT(registries, tag.get("Energy"));
+    protected void loadMachineData(CompoundTag tag, HolderLookup.Provider registries) {
+        // SA3 before MMDLib 2.0.2 saved every machine's buffer under "Energy".
+        if (powerStorage() != null && !tag.contains("energy") && tag.contains("Energy"))
+            energy.deserializeNBT(registries, tag.get("Energy"));
         burn = tag.getInt("Burn");
         totalBurn = tag.getInt("TotalBurn");
         temperature = tag.getFloat("Temperature");

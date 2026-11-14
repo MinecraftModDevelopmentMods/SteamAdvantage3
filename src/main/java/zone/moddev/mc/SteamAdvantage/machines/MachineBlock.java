@@ -43,14 +43,13 @@ public class MachineBlock
     }
     @Override
     protected void onRemove(BlockState s, Level l, BlockPos p, BlockState next, boolean moving) {
-        if (l.getBlockEntity(p) instanceof SteamMachine machine) {
-            if (machine.kind.equals("steam_drill") && (!s.is(next.getBlock())
-                    || s.getValue(BlockStateProperties.FACING)
-                            != next.getValue(BlockStateProperties.FACING)))
-                machine.clearDrill();
-            if (!s.is(next.getBlock()))
-                machine.items.dropAll(l, p);
-        }
+        if (l.getBlockEntity(p) instanceof SteamMachine machine
+                && machine.kind.equals("steam_drill")
+                && (!s.is(next.getBlock())
+                        || s.getValue(BlockStateProperties.FACING)
+                                != next.getValue(BlockStateProperties.FACING)))
+            machine.clearDrill();
+        // MaterialEntityBlock drops the contents through MMDLib's BaseMachine lifecycle.
         super.onRemove(s, l, p, next, moving);
     }
     @Override
