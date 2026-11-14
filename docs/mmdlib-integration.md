@@ -40,8 +40,13 @@ renderer, layout or synchronization code:
 | Value synchronization | `gui.runtime.ScreenNetwork`, `ScreenValues`, `ScreenSnapshots` |
 | Screen and gauge rendering | `gui.client.MachineScreen`, `GaugeRenderer` |
 
-The block-entity class `SteamMachine` implements `gui.runtime.ScreenHost`: `screenItems()`
-exposes its `ItemStorage` (so roles and filters apply to clicks and shift-click) and
+The block-entity class `SteamMachine` extends MMDLib's `machine.neoforge.BaseMachine`, which
+implements `gui.runtime.ScreenHost` and owns persistence through a `MachineInventoryLifecycle`
+(items under `Items`, fluids under `Fluids`, the electric boiler's buffer under `energy`; older
+saves' `Energy` is still read). Machine state such as burn time and drill depth stays top-level
+through `saveMachineData`/`loadMachineData`, and broken machines drop their items through
+`BaseMachine.dropContents`. `screenItems()` exposes its `ItemStorage` (so roles and filters
+apply to clicks and shift-click) and
 `screenRecipeSlots()` names the crusher and furnace recipe inputs for optional JEI transfer.
 Right-click goes through the `steamadvantage:use_machine` handler declared in
 `mmdlib/extension/machines.json`: fluid containers act on the machine's tanks first, otherwise
@@ -49,7 +54,20 @@ Right-click goes through the `steamadvantage:use_machine` handler declared in
 
 Remaining SteamAdvantage-side code that MMDLib has no equivalent for: the comparator reading in
 `MachineBlock` (MMDLib's comparator support does not yet read block-entity getters) and the
-fluid-container interaction above.
+fluid-container interaction above. Moving the machines to MMDLib's XML machine definitions, as
+Power Advantage 3.2 has, waits on MMDLib support for six-way facing (the drill) and for
+processor-supplied slot and tank filters.
+
+Each machine also declares MMDLib automation groups (`SteamMachine.automationGroups`): item
+fuel/input/output groups where a machine has them, and steam, water or input, fuel and product
+tanks. Every face of a group starts at the group's role, which matches the access SA3 always
+exposed. The item, fluid and energy capabilities registered in `ModContent` read each face's mode
+from these groups, so side settings gate pipes and hoppers and are saved under `automation`.
+Because `BaseMachine.screenAutomation()` returns these groups, every machine screen gets MMDLib's
+built-in side-configuration drawer, coloured group outlines on its slots, and add-on and filter
+slots per group (Power Advantage's fluid intake and output pumps work there). Fluid and energy
+groups name their screen gauge, which is highlighted while the group is selected. Installed
+add-ons drop as items when a machine is broken.
 
 ## Verification
 
