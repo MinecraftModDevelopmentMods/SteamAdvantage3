@@ -125,18 +125,19 @@ public final class SteamMachine extends BaseMachine {
             default -> {
             }
         }
-        fluid(groups, "steam", "screen.steamadvantage.steam", 0xC8C8C8, steam);
+        // The last argument names the screen gauge highlighted while the group is selected.
+        fluid(groups, "steam", "screen.steamadvantage.steam", 0xC8C8C8, steam, "steam");
         fluid(groups, kind.equals("steam_still") ? "input" : "water",
                 kind.equals("steam_still") ? "screen.steamadvantage.input"
                                            : "screen.steamadvantage.water",
-                0x3F76E4, water);
-        fluid(groups, "fuel", "screen.steamadvantage.fuel", 0x4A3A2A, fuel);
-        fluid(groups, "product", "screen.steamadvantage.product", 0x70A050, product);
+                0x3F76E4, water, "water");
+        fluid(groups, "fuel", "screen.steamadvantage.fuel", 0x4A3A2A, fuel, "fuel");
+        fluid(groups, "product", "screen.steamadvantage.product", 0x70A050, product, "product");
         if (powerStorage() != null)
             groups.energy(new ResourceGroup<>("energy",
                                   Component.translatable("screen.steamadvantage.energy"),
                                   0xD03030, ResourceType.ENERGY, IoMode.INPUT, List.of(0),
-                                  List.of(), new SideConfig(IoMode.INPUT)),
+                                  List.of("energy"), new SideConfig(IoMode.INPUT)),
                     energy);
         return groups.build();
     }
@@ -149,7 +150,8 @@ public final class SteamMachine extends BaseMachine {
                 items);
     }
 
-    private void fluid(MachineResources groups, String id, String name, int colour, int tank) {
+    private void fluid(MachineResources groups, String id, String name, int colour, int tank,
+            String gauge) {
         if (tank < 0)
             return;
         IoMode mode = switch (fluids.role(tank)) {
@@ -159,7 +161,7 @@ public final class SteamMachine extends BaseMachine {
             case MANUAL -> IoMode.DISABLED;
         };
         groups.fluids(new ResourceGroup<>(id, Component.translatable(name), colour,
-                              ResourceType.FLUIDS, mode, List.of(tank), List.of(),
+                              ResourceType.FLUIDS, mode, List.of(tank), List.of(gauge),
                               new SideConfig(mode)),
                 fluids);
     }

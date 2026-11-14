@@ -63,6 +63,11 @@ fuel/input/output groups where a machine has them, and steam, water or input, fu
 tanks. Every face of a group starts at the group's role, which matches the access SA3 always
 exposed. The item, fluid and energy capabilities registered in `ModContent` read each face's mode
 from these groups, so side settings gate pipes and hoppers and are saved under `automation`.
+Because `BaseMachine.screenAutomation()` returns these groups, every machine screen gets MMDLib's
+built-in side-configuration drawer, coloured group outlines on its slots, and add-on and filter
+slots per group (Power Advantage's fluid intake and output pumps work there). Fluid and energy
+groups name their screen gauge, which is highlighted while the group is selected. Installed
+add-ons drop as items when a machine is broken.
 
 ## Verification
 

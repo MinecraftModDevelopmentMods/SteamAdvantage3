@@ -5,7 +5,7 @@
     "1.21.1-recommended": "3.0.3.121012"
   },
   "1.21.1": {
-    "3.1.0.121012": "Requires MMDLib 2.0.2 and Power Advantage 3.2. Machines now build on MMDLib's shared machine base for saving, syncing and dropping contents; existing worlds load unchanged. Steam-Powered Still screen fits small windows again, and the update checker points at the correct repository.",
+    "3.1.0.121012": "Requires MMDLib 2.0.2 and Power Advantage 3.2. Machines now build on MMDLib's shared machine base for saving, syncing and dropping contents; existing worlds load unchanged. Every machine now has MMDLib's side-configuration drawer: choose per face which slots, tanks and energy pipes and hoppers may use, and install Power Advantage's fluid intake and output pumps. Defaults match the old behavior. Steam-Powered Still screen fits small windows again, and the update checker points at the correct repository.",
     "3.0.3.121012": "Restore villager offers, machine-specific comparator signals, drill crushing and rotating drill bits, connected drill-bit cleanup, gradual end-of-line retraction, and musket repair, tooltips, ammunition compatibility, block interactions, particles and camera kick.",
     "3.0.2.121012": "Steam drill: visible drill pipe, diamond-pickaxe mining speeds, 128-block range to reach modern bedrock, no longer retracts or flickers when short on steam, and no longer stalls with a full inventory.",
     "3.0.0.121012": "Initial NeoForge 1.21.1 release."

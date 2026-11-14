@@ -477,7 +477,10 @@ public final class SteamGameTests {
     private static void fireMusketAt(GameTestHelper h, net.minecraft.world.entity.player.Player player,
             BlockPos target, double height) {
         var absolute = h.absolutePos(target);
-        player.setPos(absolute.getX() + .5, absolute.getY() + height - player.getEyeHeight(),
+        // Flowers and similar plants have a position-seeded random offset, and GameTests run at a
+        // different position each time; aim at the outline's actual centre.
+        double offsetX = h.getBlockState(target).getOffset(h.getLevel(), absolute).x;
+        player.setPos(absolute.getX() + .5 + offsetX, absolute.getY() + height - player.getEyeHeight(),
                 absolute.getZ() + 3.5);
         player.setYRot(180);
         player.setXRot(0);
@@ -664,6 +667,31 @@ public final class SteamGameTests {
                                 == zone.moddev.mc.lib.api.capabilities.IoMode.INPUT,
                 "Side configuration persists");
         h.succeed();
+    }
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void powerAdvantagePumpAddonWorksAndDrops(GameTestHelper h) {
+        var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
+        var still = place(h, "steam_still", 3, 2, 2);
+        still.fluids.tank(1).fill(new FluidStack(Fluids.WATER, 2000), FluidAction.EXECUTE);
+        var automation = boiler.automation();
+        int water = automation.index("water");
+        var slot = zone.moddev.mc.lib.api.automation.AutomationInventory.addonSlot(water, 0);
+        var pump = new ItemStack(zone.moddev.mc.poweradvantage.init.ModItems.FLUID_INTAKE_PUMP.get());
+        h.assertTrue(automation.slots().insertItem(slot, pump, false).isEmpty(),
+                "Water group accepts PA's intake pump");
+        h.runAfterDelay(25, () -> {
+            h.assertTrue(boiler.fluids.tank(1).getFluidAmount() > 0,
+                    "Intake pump pulls water from the neighbouring still");
+            h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
+            var area = new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(2, 2, 2))).inflate(2);
+            h.assertTrue(h.getLevel()
+                                    .getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area)
+                                    .stream()
+                                    .anyMatch(e -> e.getItem().is(
+                                            zone.moddev.mc.poweradvantage.init.ModItems.FLUID_INTAKE_PUMP.get())),
+                    "Installed addon drops when the machine is broken");
+            h.succeed();
+        });
     }
     @GameTest(template = "empty")
     public static void legacySaveLayoutLoads(GameTestHelper h) {
