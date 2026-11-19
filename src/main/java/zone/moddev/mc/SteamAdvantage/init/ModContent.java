@@ -18,8 +18,6 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 import zone.moddev.mc.SteamAdvantage.SteamAdvantage;
 import zone.moddev.mc.SteamAdvantage.blocks.DrillBitBlockEntity;
-import zone.moddev.mc.SteamAdvantage.machines.MachineBlock;
-import zone.moddev.mc.SteamAdvantage.machines.SteamMachine;
 import zone.moddev.mc.SteamAdvantage.recipes.RecipeModeCondition;
 import zone.moddev.mc.lib.MMDLib;
 import zone.moddev.mc.lib.api.MaterialExtensions;
@@ -38,16 +36,11 @@ public final class ModContent {
     private static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES =
             DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, SteamAdvantage.MODID);
     private static RuntimeContentRegistrar runtime;
-    // Acceptance-test catalog, not an alternative registration list. Definitions own registration.
+    // Every machine is an MMDLib XML machine (mmdlib/machine/) whose entity is SteamMachineEntity.
     public static final List<String> MACHINES =
             List.of("steam_boiler_coal", "steam_boiler_electric", "steam_boiler_geothermal",
                     "steam_boiler_oil", "steam_tank", "steam_furnace", "steam_crusher",
                     "steam_drill", "steam_elevator", "steam_still", "steam_pump", "steam_switch");
-    /** Machines defined by MMDLib XML (mmdlib/machine/); the rest still use MachineBlock. */
-    public static final List<String> XML_MACHINES =
-            List.of("steam_boiler_coal", "steam_boiler_electric", "steam_boiler_geothermal",
-                    "steam_boiler_oil", "steam_tank", "steam_elevator", "steam_still",
-                    "steam_pump", "steam_switch", "steam_drill");
     private ModContent() {}
     public static ResourceLocation id(String path) {
         return ResourceLocation.fromNamespaceAndPath(SteamAdvantage.MODID, path);
@@ -60,13 +53,6 @@ public final class ModContent {
     }
     public static RuntimeContentRegistrar runtime() {
         return java.util.Objects.requireNonNull(runtime, "Content has not been initialized");
-    }
-    @SuppressWarnings("unchecked")
-    public static BlockEntityType<SteamMachine> machineType(BlockState state) {
-        return (BlockEntityType<SteamMachine>) runtime()
-                .blockEntityTypes()
-                .get(BuiltInRegistries.BLOCK.getKey(state.getBlock()))
-                .get();
     }
     @SuppressWarnings("unchecked")
     public static BlockEntityType<DrillBitBlockEntity> drillBitType() {
@@ -94,29 +80,8 @@ public final class ModContent {
         }));
         bus.addListener(ModContent::capabilities);
     }
-    @SuppressWarnings("unchecked")
+    /** Machine capabilities come from their XML definitions; pipes are Power Advantage's. */
     private static void capabilities(RegisterCapabilitiesEvent event) {
-        runtime.blockEntityTypes().forEach((id, holder) -> {
-            if (!(block(id.getPath()) instanceof MachineBlock)) return;
-            var type = (BlockEntityType<SteamMachine>) holder.get();
-            // Each face follows the machine's MMDLib automation groups; a null side keeps full
-            // role-based access, as before.
-            event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, type,
-                    (be, side) -> side == null
-                            ? be.items().view(IoMode.BOTH)
-                            : be.items().view(slot -> be.automation().mode(
-                                    ResourceType.ITEMS, slot, side)));
-            event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, type,
-                    (be, side) -> side == null
-                            ? be.fluids().view(IoMode.BOTH)
-                            : be.fluids().view(tank -> be.automation().mode(
-                                    ResourceType.FLUIDS, tank, side)));
-            event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, type,
-                    (be, side) -> !be.kind().equals("steam_boiler_electric") ? null
-                            : side == null ? be.energy().view(IoMode.INPUT)
-                            : be.energy().view(() -> be.automation().mode(
-                                    ResourceType.ENERGY, 0, side)));
-        });
         FluidPipeBlock.registerCapabilities(
                 event, (FluidPipeBlock) block("steam_pipe"), (FluidPipeBlock) block("steam_track"));
     }

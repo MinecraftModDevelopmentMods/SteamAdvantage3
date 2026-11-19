@@ -132,7 +132,7 @@ if (project.hasProperty('gameTests')) {
             }
         }
     }
-    tasks.named('jar') { exclude '**/SteamGameTests*', 'data/steamadvantage/structure/empty.nbt', 'data/steamadvantage/recipe/test_slow_distillation.json', 'data/c/tags/fluid/oil.json', 'mmdlib/standalone/block/test_large_steam_tank.json', 'mmdlib/screen/test_large_steam_tank.xml' }
+    tasks.named('jar') { exclude '**/SteamGameTests*', 'data/steamadvantage/structure/empty.nbt', 'data/steamadvantage/recipe/test_slow_distillation.json', 'data/c/tags/fluid/oil.json', 'mmdlib/machine/test_large_steam_tank.xml', 'data/steamadvantage/legacy_saves/**' }
     tasks.named('sourcesJar') { exclude '**/SteamGameTests*' }
     tasks.named('javadoc') { exclude '**/SteamGameTests*' }
 }

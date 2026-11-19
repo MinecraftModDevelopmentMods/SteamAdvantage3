@@ -16,22 +16,12 @@ import zone.moddev.mc.SteamAdvantage.items.MusketItem;
 @GameTestHolder(SteamAdvantage.MODID)
 @PrefixGameTestTemplate(false)
 public final class SteamGameTests {
-    private static SteamMachine place(GameTestHelper h, String name, int x, int y, int z) {
-        var p = new BlockPos(x, y, z);
-        h.setBlock(p, ModContent.block(name));
-        var be = h.getLevel().getBlockEntity(h.absolutePos(p));
-        h.assertTrue(be instanceof SteamMachine, "Machine entity: " + name);
-        return (SteamMachine) be;
-    }
-    /** Machines already ported to MMDLib XML definitions. */
-    private static final java.util.Set<String> XML_MACHINES =
-            java.util.Set.copyOf(ModContent.XML_MACHINES);
     /** The machine's processor of the given type. */
     private static <T> T processor(zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity m, Class<T> type) {
         return m.features.allProcessors().stream().filter(type::isInstance).map(type::cast)
                 .findFirst().orElseThrow();
     }
-    private static zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity placeXml(
+    private static zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity place(
             GameTestHelper h, String name, int x, int y, int z) {
         var p = new BlockPos(x, y, z);
         h.setBlock(p, ModContent.block(name));
@@ -49,6 +39,13 @@ public final class SteamGameTests {
             case "steam_boiler_electric" -> m.energy.setStored(m.energy.capacity() * fraction / 2);
             case "steam_boiler_coal" -> m.items.setStackInSlot(0, fraction == 0 ? ItemStack.EMPTY
                     : new ItemStack(Items.COAL, fraction * 32));
+            case "steam_crusher" -> m.items.setStackInSlot(0, fraction == 0 ? ItemStack.EMPTY
+                    : new ItemStack(Items.COBBLESTONE, fraction * 32));
+            case "steam_furnace" -> {
+                for (int slot = 0; slot < 3; slot++)
+                    m.items.setStackInSlot(slot, fraction == 0 ? ItemStack.EMPTY
+                            : new ItemStack(Items.RAW_IRON, fraction * 32));
+            }
             case "steam_drill" -> {
                 for (int slot = 0; slot < 5; slot++)
                     m.items.setStackInSlot(slot, fraction == 0 ? ItemStack.EMPTY
@@ -108,7 +105,7 @@ public final class SteamGameTests {
 
     @GameTest(template = "empty")
     public static void drillRetractsGraduallyAndWaitsForReset(GameTestHelper h) {
-        var drill = placeXml(h, "steam_drill", 2, 2, 2);
+        var drill = place(h, "steam_drill", 2, 2, 2);
         var dp = processor(drill, DrillProcessor.class);
         var facing = net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING;
         h.setBlock(new BlockPos(2, 2, 2), drill.getBlockState().setValue(facing, Direction.UP));
@@ -237,7 +234,7 @@ public final class SteamGameTests {
 
     @GameTest(template = "empty")
     public static void drillReturnsNormalBlockDropsWithoutCrushing(GameTestHelper h) {
-        var drill = placeXml(h, "steam_drill", 3, 2, 3);
+        var drill = place(h, "steam_drill", 3, 2, 3);
         var dp = processor(drill, DrillProcessor.class);
         var target = new BlockPos(3, 2, 2);
         // Cobblestone and bricks have crushing recipes; the drill must not apply them.
@@ -263,7 +260,7 @@ public final class SteamGameTests {
 
     @GameTest(template = "empty")
     public static void drillWaitsForOutputCapacity(GameTestHelper h) {
-        var drill = placeXml(h, "steam_drill", 3, 2, 3);
+        var drill = place(h, "steam_drill", 3, 2, 3);
         var dp = processor(drill, DrillProcessor.class);
         var target = new BlockPos(3, 2, 2);
         h.setBlock(target, Blocks.COBBLESTONE);
@@ -286,55 +283,21 @@ public final class SteamGameTests {
         h.succeed();
     }
 
-    private static void setComparatorSource(SteamMachine m, int fraction) {
-        switch (m.kind) {
-            case "steam_elevator" -> m.raised = fraction > 0;
-            case "steam_boiler_geothermal" -> m.temperature = 1000 * fraction;
-            case "steam_boiler_electric" -> m.energy.setStored(m.energy.capacity() * fraction / 2);
-            case "steam_drill", "steam_furnace", "steam_crusher", "steam_boiler_coal" -> {
-                int first = m.kind.equals("steam_drill") ? 4 : m.kind.equals("steam_furnace") ? 1 : 0;
-                int end = m.kind.equals("steam_drill") ? 9 : m.kind.equals("steam_furnace") ? 4 : 1;
-                for (int slot = first; slot < end; slot++)
-                    m.items.setStackInSlot(slot, fraction == 0 ? ItemStack.EMPTY
-                            : new ItemStack(Items.COAL, fraction * 32));
-            }
-            default -> {
-                int tank = m.kind.equals("steam_boiler_oil") ? m.fuel
-                        : m.kind.equals("steam_pump") ? m.product
-                        : m.kind.equals("steam_still") ? m.water : m.steam;
-                var fluid = m.kind.equals("steam_boiler_oil") ? Fluids.LAVA
-                        : m.kind.equals("steam_pump") || m.kind.equals("steam_still") ? Fluids.WATER
-                        : zone.moddev.mc.poweradvantage.init.Fluids.STEAM.get();
-                m.fluids.tank(tank).drain(Integer.MAX_VALUE, FluidAction.EXECUTE);
-                if (fraction > 0) m.fluids.tank(tank).fill(
-                        new FluidStack(fluid, m.fluids.tank(tank).getCapacity() * fraction / 2),
-                        FluidAction.EXECUTE);
-            }
-        }
-    }
 
     @GameTest(template = "empty")
-    public static void machineComparatorSourcesAndScaling(GameTestHelper h) {
-        var pos = new BlockPos(2, 2, 2);
+    public static void comparatorReadingsIgnoreUnrelatedStorage(GameTestHelper h) {
+        // Machines whose reading is not their steam tank ignore steam fullness.
         for (String kind : ModContent.MACHINES) {
-            h.setBlock(pos, Blocks.AIR);
-            if (XML_MACHINES.contains(kind))
-                continue; // Sampled once per tick; see xmlComparatorScaling.
+            if (kind.equals("steam_tank") || kind.equals("steam_switch"))
+                continue;
+            h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
             var m = place(h, kind, 2, 2, 2);
-            for (int fraction = 0; fraction <= 2; fraction++) {
-                setComparatorSource(m, fraction);
-                int expected = kind.equals("steam_elevator") ? (fraction == 0 ? 0 : 15)
-                        : fraction == 0 ? 0 : fraction == 1 ? 7 : 15;
-                h.assertTrue(m.getBlockState().getAnalogOutputSignal(h.getLevel(), m.getBlockPos()) == expected,
-                        kind + " comparator fraction " + fraction + " expected " + expected);
-            }
-            setComparatorSource(m, 0);
-            if (!kind.equals("steam_tank") && !kind.equals("steam_switch")) {
-                m.fluids.tank(m.steam).fill(steam(m.getSteamCapacity()), FluidAction.EXECUTE);
-                h.assertTrue(m.comparatorSignal() == 0, kind + " ignores unrelated steam fullness");
-            }
+            m.fluids.tank(0).fill(steam(m.fluids.tank(0).getCapacity()), FluidAction.EXECUTE);
+            var reading = processor(m, SteamProcessor.class).redstoneOutputs().getFirst().signal();
+            h.assertTrue(reading.getAsInt() == 0, kind + " ignores unrelated steam fullness");
         }
-        var drill = placeXml(h, "steam_drill", 2, 2, 2);
+        h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
+        var drill = place(h, "steam_drill", 2, 2, 2);
         var reading = processor(drill, DrillProcessor.class).redstoneOutputs().getFirst().signal();
         drill.items.setStackInSlot(0, new ItemStack(Items.WATER_BUCKET));
         h.assertTrue(reading.getAsInt() == 3, "Nonstackable item fills one of five drill slots");
@@ -348,14 +311,14 @@ public final class SteamGameTests {
     /** MMDLib samples an XML machine's comparator source once per tick, so step a tick apart. */
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void xmlComparatorScaling(GameTestHelper h) {
-        verifyXmlScaling(h, XML_MACHINES.stream().sorted().toList(), 0, 0);
+        verifyXmlScaling(h, ModContent.MACHINES.stream().sorted().toList(), 0, 0);
     }
     private static void verifyXmlScaling(
             GameTestHelper h, java.util.List<String> kinds, int index, int fraction) {
         if (index == kinds.size()) { h.succeed(); return; }
         String kind = kinds.get(index);
         if (fraction == 0) h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
-        var x = fraction == 0 ? placeXml(h, kind, 2, 2, 2)
+        var x = fraction == 0 ? place(h, kind, 2, 2, 2)
                 : (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
                           h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(2, 2, 2)));
         // Hold processing so a tank does not empty itself into the test structure.
@@ -384,8 +347,8 @@ public final class SteamGameTests {
         h.setBlock(comparatorPos, Blocks.AIR);
         h.setBlock(machinePos, Blocks.AIR);
         String kind = ModContent.MACHINES.get(index);
-        if (XML_MACHINES.contains(kind)) {
-            var x = placeXml(h, kind, 2, 2, 2);
+        var x = place(h, kind, 2, 2, 2);
+        {
             h.setBlock(machinePos.above(), Blocks.REDSTONE_BLOCK);
             h.setBlock(comparatorPos.below(), Blocks.STONE);
             h.setBlock(comparatorPos, Blocks.COMPARATOR.defaultBlockState().setValue(
@@ -402,28 +365,7 @@ public final class SteamGameTests {
                     verifyComparatorUpdate(h, index + 1);
                 });
             });
-            return;
         }
-        var m = place(h, kind, 2, 2, 2);
-        h.setBlock(machinePos.above(), Blocks.REDSTONE_BLOCK); // Pause processing without powering the comparator.
-        h.setBlock(comparatorPos.below(), Blocks.STONE);
-        h.setBlock(comparatorPos, Blocks.COMPARATOR.defaultBlockState().setValue(
-                net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING,
-                Direction.WEST));
-        setComparatorSource(m, 2);
-        h.runAfterDelay(4, () -> {
-            var comparator = (net.minecraft.world.level.block.entity.ComparatorBlockEntity)
-                    h.getLevel().getBlockEntity(h.absolutePos(comparatorPos));
-            h.assertTrue(comparator.getOutputSignal() == 15, m.kind + " comparator rises to 15");
-            // A raw stack mutation bypasses onChange, as some machine operations do.
-            if (m.kind.equals("steam_boiler_coal") || m.kind.equals("steam_crusher"))
-                m.items.getStackInSlot(0).shrink(64);
-            else setComparatorSource(m, 0);
-            h.runAfterDelay(4, () -> {
-                h.assertTrue(comparator.getOutputSignal() == 0, m.kind + " comparator falls to zero");
-                verifyComparatorUpdate(h, index + 1);
-            });
-        });
     }
 
     /** Temporary tag membership exercises datapack integration without shipping test tag entries. */
@@ -670,15 +612,14 @@ public final class SteamGameTests {
     @GameTest(template = "empty")
     public static void registrationCapabilitiesPersistence(GameTestHelper h) {
         for (String name : ModContent.MACHINES) {
-            var m = XML_MACHINES.contains(name) ? placeXml(h, name, 2, 2, 2)
-                                                : place(h, name, 2, 2, 2);
+            var m = place(h, name, 2, 2, 2);
             for (var side : Direction.values())
                 h.assertTrue(h.getLevel().getCapability(
                                      Capabilities.FluidHandler.BLOCK, m.getBlockPos(), side)
                                 != null,
                         "Missing fluid capability " + name);
         }
-        var tank = placeXml(h, "steam_tank", 2, 2, 2);
+        var tank = place(h, "steam_tank", 2, 2, 2);
         h.assertTrue(tank.fluids.fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE) == 0,
                 "Steam-only filter");
         tank.fluids.fill(steam(123456), FluidAction.EXECUTE);
@@ -701,18 +642,18 @@ public final class SteamGameTests {
     @GameTest(template = "empty")
     public static void defaultAutomationSidesMatchRoles(GameTestHelper h) {
         var furnace = place(h, "steam_furnace", 1, 2, 1);
-        var boiler = placeXml(h, "steam_boiler_electric", 4, 2, 1);
-        var tank = placeXml(h, "steam_tank", 1, 2, 4);
-        furnace.items.setStackInSlot(4, new ItemStack(Items.IRON_INGOT, 6));
+        var boiler = place(h, "steam_boiler_electric", 4, 2, 1);
+        var tank = place(h, "steam_tank", 1, 2, 4);
+        furnace.items.setStackInSlot(3, new ItemStack(Items.IRON_INGOT, 6));
         for (var side : Direction.values()) {
             var items = itemsAt(h, furnace, side);
-            h.assertTrue(items.insertItem(0, new ItemStack(Items.COAL), true).isEmpty(),
-                    "Fuel accepted from " + side);
-            h.assertTrue(items.insertItem(1, new ItemStack(Items.RAW_IRON), true).isEmpty(),
+            h.assertTrue(items.insertItem(0, new ItemStack(Items.RAW_IRON), true).isEmpty(),
                     "Smeltable input accepted from " + side);
-            h.assertTrue(!items.insertItem(4, new ItemStack(Items.IRON_INGOT), true).isEmpty(),
+            h.assertTrue(!items.insertItem(0, new ItemStack(Items.STICK), true).isEmpty(),
+                    "Unsmeltable input refused from " + side);
+            h.assertTrue(!items.insertItem(3, new ItemStack(Items.IRON_INGOT), true).isEmpty(),
                     "Output refuses insertion from " + side);
-            h.assertTrue(items.extractItem(4, 1, true).getCount() == 1,
+            h.assertTrue(items.extractItem(3, 1, true).getCount() == 1,
                     "Output extractable from " + side);
             var water = fluidsAt(h, boiler, side);
             h.assertTrue(water.fill(new FluidStack(Fluids.WATER, 100), FluidAction.SIMULATE) == 100,
@@ -733,7 +674,7 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty")
     public static void automationSideConfigGatesAndPersists(GameTestHelper h) {
-        var boiler = placeXml(h, "steam_boiler_coal", 2, 2, 2);
+        var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
         var automation = boiler.screenAutomation();
         var water = automation.group(automation.index("water"));
         var facing = boiler.getBlockState().getValue(
@@ -762,8 +703,8 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty", timeoutTicks = 60)
     public static void powerAdvantagePumpAddonWorksAndDrops(GameTestHelper h) {
-        var boiler = placeXml(h, "steam_boiler_coal", 2, 2, 2);
-        var still = placeXml(h, "steam_still", 3, 2, 2);
+        var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
+        var still = place(h, "steam_still", 3, 2, 2);
         still.fluids.tank(1).fill(new FluidStack(Fluids.WATER, 2000), FluidAction.EXECUTE);
         var automation = boiler.screenAutomation();
         int water = automation.index("water");
@@ -786,107 +727,85 @@ public final class SteamGameTests {
         });
     }
     /**
-     * A save written by the shared pre-XML SteamMachine entity, with its machine state in
-     * top-level keys and the electric boiler's pre-2.0.2 "Energy" key.
+     * Loads a save written by the shared pre-XML SteamMachine entity, captured as SNBT in
+     * data/steamadvantage/legacy_saves (see that folder's README), into the machine's XML entity.
      */
     private static zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity importLegacy(
-            GameTestHelper h, String kind, java.util.function.Consumer<SteamMachine> setup,
-            java.util.function.Consumer<net.minecraft.nbt.CompoundTag> edit) {
+            GameTestHelper h, String kind) {
         var registries = h.getLevel().registryAccess();
-        var placed = placeXml(h, kind, 2, 2, 2);
-        var crusher = ModContent.block("steam_crusher").defaultBlockState();
-        var settings = switch (kind) {
-            case "steam_boiler_electric" -> new MachineSettings(kind, 20000, 4000, 0, 0, 9, 1600, 160);
-            case "steam_boiler_coal" -> new MachineSettings(kind, 100000, 4000, 0, 0, 9, 0, 0);
-            case "steam_boiler_oil" -> new MachineSettings(kind, 100000, 4000, 4000, 0, 9, 0, 0);
-            case "steam_boiler_geothermal" -> new MachineSettings(kind, 10000, 4000, 0, 0, 9, 0, 0);
-            case "steam_still" -> new MachineSettings(kind, 10000, 4000, 0, 4000, 9, 0, 0);
-            case "steam_pump" -> new MachineSettings(kind, 20000, 0, 0, 4000, 9, 0, 0);
-            default -> new MachineSettings(kind, 6400, 0, 0, 0, 9, 0, 0);
-        };
-        var legacy = new SteamMachine(ModContent.machineType(crusher), placed.getBlockPos(), crusher,
-                settings);
-        legacy.setLevel(h.getLevel()); // The still's input filter consults the level's recipes.
-        setup.accept(legacy);
-        var saved = legacy.saveWithFullMetadata(registries);
-        saved.putString("id", ModContent.id(kind).toString());
-        edit.accept(saved);
-        h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
-        h.setBlock(new BlockPos(2, 2, 2), placed.getBlockState());
+        var placed = place(h, kind, 2, 2, 2);
+        net.minecraft.nbt.CompoundTag saved;
+        try (var in = SteamGameTests.class.getResourceAsStream(
+                "/data/steamadvantage/legacy_saves/" + kind + ".snbt")) {
+            saved = net.minecraft.nbt.NbtUtils.snbtToStructure(
+                    new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception failure) {
+            throw new IllegalStateException("Missing legacy fixture " + kind, failure);
+        }
+        h.assertTrue(saved.contains("TotalBurn"), kind + " fixture is a pre-XML save");
         var imported = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
                 net.minecraft.world.level.block.entity.BlockEntity.loadStatic(
-                        h.absolutePos(new BlockPos(2, 2, 2)), placed.getBlockState(), saved, registries);
+                        placed.getBlockPos(), placed.getBlockState(), saved, registries);
         h.assertTrue(imported != null, kind + " imports a pre-XML save");
         var resaved = imported.saveWithFullMetadata(registries);
         h.assertTrue(!resaved.contains("TotalBurn") && !resaved.contains("Burn")
                         && !resaved.contains("Energy"),
                 kind + " saves in the current format");
+        h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
         return imported;
     }
     @GameTest(template = "empty")
     public static void preXmlMachineSavesLoad(GameTestHelper h) {
-        var coal = importLegacy(h, "steam_boiler_coal", m -> {
-            m.items().setStackInSlot(0, new ItemStack(Items.COAL, 5));
-            m.fluids().tank(1).fill(new FluidStack(Fluids.WATER, 777), FluidAction.EXECUTE);
-            m.burn = 17;
-            m.totalBurn = 1600;
-        }, tag -> {});
+        var coal = importLegacy(h, "steam_boiler_coal");
         var burner = processor(coal, CoalBoilerProcessor.class);
         h.assertTrue(coal.items.getStackInSlot(0).getCount() == 5, "Coal stays in the fuel slot");
         h.assertTrue(coal.fluids.tank(1).getFluidAmount() == 777, "Water stays in tank 1");
         h.assertTrue(burner.burnTime() == 17 && burner.totalBurnTime() == 1600, "Burn timer imported");
 
-        var electric = importLegacy(h, "steam_boiler_electric", m -> m.energy().setStored(1234),
-                tag -> {
-                    // SA3 before MMDLib 2.0.2 saved the buffer as "Energy".
-                    tag.put("Energy", tag.get("energy"));
-                    tag.remove("energy");
-                });
+        var electric = importLegacy(h, "steam_boiler_electric");
         h.assertTrue(electric.energy.stored() == 1234, "Legacy Energy key is imported");
 
-        var oil = importLegacy(h, "steam_boiler_oil", m -> {
-            m.fluids().tank(2).fill(new FluidStack(Fluids.LAVA, 900), FluidAction.EXECUTE);
-            m.burn = 40;
-        }, tag -> {});
+        var oil = importLegacy(h, "steam_boiler_oil");
         h.assertTrue(oil.fluids.tank(2).getFluidAmount() == 900
                         && processor(oil, OilBoilerProcessor.class).burnTime() == 40,
                 "Oil fuel tank and burn timer imported");
 
-        var geo = importLegacy(h, "steam_boiler_geothermal", m -> m.temperature = 640, tag -> {});
+        var geo = importLegacy(h, "steam_boiler_geothermal");
         h.assertTrue(processor(geo, GeothermalBoilerProcessor.class).temperature() == 640,
                 "Geothermal temperature imported");
 
-        var elevator = importLegacy(h, "steam_elevator", m -> {
-            m.raised = true;
-            m.elevatorHeight = 5;
-        }, tag -> {});
+        var elevator = importLegacy(h, "steam_elevator");
         h.assertTrue(processor(elevator, ElevatorProcessor.class).raised(), "Raised state imported");
 
-        var still = importLegacy(h, "steam_still", m -> {
-            m.fluids().tank(2).fill(new FluidStack(Fluids.WATER, 300), FluidAction.EXECUTE);
-            m.pendingDistillation = new FluidStack(Fluids.LAVA, 100);
-            m.distillationDuration = 20;
-            m.progress[0] = 7;
-        }, tag -> {});
+        var still = importLegacy(h, "steam_still");
         var batch = processor(still, StillProcessor.class);
         h.assertTrue(still.fluids.tank(2).getFluidAmount() == 300, "Still input stays in tank 2");
         h.assertTrue(batch.pending().getFluid() == Fluids.LAVA && batch.pending().getAmount() == 100
                         && batch.progress() == 7 && batch.duration() == 20,
                 "Pending distillation batch imported");
 
-        var pump = importLegacy(h, "steam_pump", m ->
-                m.fluids().tank(1).fill(new FluidStack(Fluids.WATER, 2000), FluidAction.EXECUTE),
-                tag -> {});
+        var pump = importLegacy(h, "steam_pump");
         h.assertTrue(pump.fluids.tank(1).getFluidAmount() == 2000, "Pumped fluid stays in tank 1");
 
-        var drill = importLegacy(h, "steam_drill", m -> {
-            m.items().setStackInSlot(4, new ItemStack(Items.COBBLESTONE, 12));
-            m.items().setStackInSlot(8, new ItemStack(Items.FLINT, 2));
-            m.depth = 9;
-            m.drillPhase = 1;
-            m.drillRetractionTicks = 2;
-            m.progress[0] = 5;
-        }, tag -> {});
+        var crusher = importLegacy(h, "steam_crusher");
+        h.assertTrue(crusher.items.getStackInSlot(0).getCount() == 3
+                        && crusher.items.getStackInSlot(1).is(Items.GRAVEL)
+                        && crusher.items.getStackInSlot(1).getCount() == 4
+                        && crusher.fluids.tank(0).getFluidAmount() == 5000,
+                "Crusher input, output (slot 4 to 1) and steam imported");
+
+        var furnace = importLegacy(h, "steam_furnace");
+        h.assertTrue(furnace.items.getStackInSlot(0).is(Items.RAW_IRON)
+                        && furnace.items.getStackInSlot(1).getCount() == 2
+                        && furnace.items.getStackInSlot(3).getCount() == 3
+                        && furnace.fluids.tank(0).getFluidAmount() == 6000,
+                "Furnace lanes (inputs 1-3 to 0-2, outputs 4-6 to 3-5) and steam imported");
+        h.assertTrue(furnace.items.recoveryContents().stream().anyMatch(
+                        entry -> ((net.minecraft.nbt.CompoundTag) entry).getString("id")
+                                .equals("minecraft:coal")),
+                "The retired fuel slot's coal is kept for recovery");
+
+        var drill = importLegacy(h, "steam_drill");
         var bore = processor(drill, DrillProcessor.class);
         h.assertTrue(drill.items.getStackInSlot(0).getCount() == 12
                         && drill.items.getStackInSlot(4).is(Items.FLINT),
@@ -900,7 +819,7 @@ public final class SteamGameTests {
     public static void brokenMachineDropsItemsOnce(GameTestHelper h) {
         var crusher = place(h, "steam_crusher", 2, 2, 2);
         crusher.items.setStackInSlot(0, new ItemStack(Items.COBBLESTONE, 5));
-        crusher.items.setStackInSlot(4, new ItemStack(Items.GRAVEL, 3));
+        crusher.items.setStackInSlot(1, new ItemStack(Items.GRAVEL, 3));
         h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
         var area = new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(2, 2, 2))).inflate(2);
         var drops = h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area);
@@ -913,7 +832,7 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void coalBoilerAndRedstone(GameTestHelper h) {
-        var boiler = placeXml(h, "steam_boiler_coal", 2, 2, 2);
+        var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
         boiler.fluids.fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE);
         boiler.items.setStackInSlot(0, new ItemStack(Items.COAL));
         h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
@@ -936,7 +855,7 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void electricBoilerSpendsEnergy(GameTestHelper h) {
-        var boiler = placeXml(h, "steam_boiler_electric", 2, 2, 2);
+        var boiler = place(h, "steam_boiler_electric", 2, 2, 2);
         boiler.fluids.fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE);
         boiler.energy.setStored(160);
         h.runAfterDelay(20, () -> {
@@ -947,7 +866,7 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void pumpConservesWorldFluid(GameTestHelper h) {
-        var pump = placeXml(h, "steam_pump", 2, 4, 2);
+        var pump = place(h, "steam_pump", 2, 4, 2);
         pump.fluids.fill(steam(6400), FluidAction.EXECUTE);
         h.setBlock(new BlockPos(2, 3, 2), Blocks.WATER);
         h.runAfterDelay(40, () -> {
@@ -959,7 +878,7 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty", timeoutTicks = 120)
     public static void boilerPipeConsumer(GameTestHelper h) {
-        var boiler = placeXml(h, "steam_boiler_coal", 2, 2, 2);
+        var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
         h.setBlock(new BlockPos(3, 2, 2), ModContent.block("steam_pipe"));
         var furnace = place(h, "steam_furnace", 4, 2, 2);
         boiler.fluids.fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE);
@@ -978,7 +897,7 @@ public final class SteamGameTests {
         crusher.items.setStackInSlot(0, new ItemStack(Items.COBBLESTONE));
         h.runAfterDelay(130, () -> {
             h.assertTrue(crusher.items.getStackInSlot(0).isEmpty(), "Crushing consumes input");
-            h.assertTrue(crusher.items.getStackInSlot(4).is(Items.GRAVEL),
+            h.assertTrue(crusher.items.getStackInSlot(1).is(Items.GRAVEL),
                     "Library recipe produced gravel");
             h.assertTrue(crusher.fluids.tank(0).getFluidAmount() == 1250,
                     "Crushing spends 125 x 150 mB");
@@ -987,7 +906,7 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void drillMovesAlongTrackWithoutLosingInventory(GameTestHelper h) {
-        var drill = placeXml(h, "steam_drill", 3, 2, 3);
+        var drill = place(h, "steam_drill", 3, 2, 3);
         drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
         drill.items.setStackInSlot(0, new ItemStack(Items.DIAMOND, 3));
         h.setBlock(new BlockPos(3, 2, 2), Blocks.BEDROCK);
@@ -1022,7 +941,7 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void starvedDrillPausesInsteadOfRetracting(GameTestHelper h) {
-        var drill = placeXml(h, "steam_drill", 3, 2, 3);
+        var drill = place(h, "steam_drill", 3, 2, 3);
         // Enough steam for one pipe segment through air, then starved.
         drill.fluids.fill(steam(300), FluidAction.EXECUTE);
         h.runAfterDelay(5, () -> {
@@ -1034,7 +953,7 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void elevatorExtendsAndRetracts(GameTestHelper h) {
-        var elevator = placeXml(h, "steam_elevator", 3, 2, 3);
+        var elevator = place(h, "steam_elevator", 3, 2, 3);
         elevator.fluids.fill(steam(10000), FluidAction.EXECUTE);
         h.setBlock(new BlockPos(3, 8, 3), Blocks.STONE);
         h.setBlock(new BlockPos(4, 2, 3), Blocks.REDSTONE_BLOCK);
@@ -1048,39 +967,23 @@ public final class SteamGameTests {
             });
         });
     }
-    /**
-     * A tank or switch saved by SA3 before the XML port (the shared SteamMachine entity, with a
-     * nine-slot "Items" inventory and an unnamed steam tank under "Fluids") loads into the XML
-     * machine with its steam intact.
-     */
+    /** Pre-XML tanks and switches keep their steam. */
     @GameTest(template = "empty")
     public static void preXmlTankAndSwitchSavesLoad(GameTestHelper h) {
-        var registries = h.getLevel().registryAccess();
-        var crusher = ModContent.block("steam_crusher").defaultBlockState();
         for (String kind : java.util.List.of("steam_tank", "steam_switch")) {
-            var placed = placeXml(h, kind, 2, 2, 2);
-            var legacy = new SteamMachine(ModContent.machineType(crusher), placed.getBlockPos(),
-                    crusher, new MachineSettings(kind, kind.equals("steam_tank") ? 1000000 : 20000,
-                                     0, 0, 0, 9, 0, 0));
-            legacy.fluids().tank(0).fill(steam(4321), FluidAction.EXECUTE);
-            var saved = legacy.saveWithFullMetadata(registries);
-            saved.putString("id", ModContent.id(kind).toString());
-            var imported = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
-                    net.minecraft.world.level.block.entity.BlockEntity.loadStatic(
-                            placed.getBlockPos(), placed.getBlockState(), saved, registries);
-            h.assertTrue(imported != null && imported.fluids.tank(0).getFluidAmount() == 4321
+            var imported = importLegacy(h, kind);
+            h.assertTrue(imported.fluids.tank(0).getFluidAmount() == 4321
                                  && imported.fluids.tank(0).getFluid().getFluid()
                                          == zone.moddev.mc.poweradvantage.init.Fluids.STEAM.get(),
                     kind + " keeps its pre-XML steam");
-            h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
         }
         h.succeed();
     }
 
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void valveStopsOutputWhenPowered(GameTestHelper h) {
-        var valve = placeXml(h, "steam_switch", 3, 2, 3);
-        var tank = placeXml(h, "steam_tank", 3, 2, 2);
+        var valve = place(h, "steam_switch", 3, 2, 3);
+        var tank = place(h, "steam_tank", 3, 2, 2);
         valve.fluids.fill(steam(10000), FluidAction.EXECUTE);
         h.setBlock(new BlockPos(4, 2, 3), Blocks.REDSTONE_BLOCK);
         h.runAfterDelay(5, () -> {
@@ -1095,10 +998,10 @@ public final class SteamGameTests {
 
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void oilAndGeothermalBoilers(GameTestHelper h) {
-        var oil = placeXml(h, "steam_boiler_oil", 2, 2, 2);
+        var oil = place(h, "steam_boiler_oil", 2, 2, 2);
         oil.fluids.fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE);
         oil.fluids.fill(new FluidStack(Fluids.LAVA, 1000), FluidAction.EXECUTE);
-        var geo = placeXml(h, "steam_boiler_geothermal", 6, 2, 2);
+        var geo = place(h, "steam_boiler_geothermal", 6, 2, 2);
         geo.fluids.fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE);
         h.setBlock(new BlockPos(6, 1, 2), Blocks.MAGMA_BLOCK);
         h.runAfterDelay(60, () -> {
@@ -1112,7 +1015,7 @@ public final class SteamGameTests {
     @GameTest(template = "empty", timeoutTicks = 140)
     public static void distillationUsesPowerAdvantageDefaultRecipe(GameTestHelper h) {
         // PA 3.2's built-in poweradvantage:distilling_refined_oil: 100 mB crude -> 50 mB refined in 100 ticks.
-        var still = placeXml(h, "steam_still", 2, 2, 2);
+        var still = place(h, "steam_still", 2, 2, 2);
         var crudeOil = zone.moddev.mc.poweradvantage.init.Fluids.CRUDE_OIL.get();
         var refinedOil = zone.moddev.mc.poweradvantage.init.Fluids.REFINED_OIL.get();
         h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
@@ -1141,7 +1044,7 @@ public final class SteamGameTests {
 
     @GameTest(template = "empty", timeoutTicks = 60)
     public static void distillationProgressPersistsUntilOutput(GameTestHelper h) {
-        var still = placeXml(h, "steam_still", 2, 2, 2);
+        var still = place(h, "steam_still", 2, 2, 2);
         still.fluids.tank(0).fill(steam(150), FluidAction.EXECUTE);
         still.fluids.tank(2).fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE);
         h.runAfterDelay(10, () -> {
@@ -1165,7 +1068,7 @@ public final class SteamGameTests {
 
     @GameTest(template = "empty", timeoutTicks = 40)
     public static void distillationBlockedOutputDoesNotConsumeResources(GameTestHelper h) {
-        var still = placeXml(h, "steam_still", 2, 2, 2);
+        var still = place(h, "steam_still", 2, 2, 2);
         still.fluids.tank(0).fill(steam(150), FluidAction.EXECUTE);
         still.fluids.tank(1).fill(new FluidStack(Fluids.LAVA, 4000), FluidAction.EXECUTE);
         still.fluids.tank(2).fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE);
@@ -1199,41 +1102,25 @@ public final class SteamGameTests {
     public static void furnaceProcessesThreeLanes(GameTestHelper h) {
         var furnace = place(h, "steam_furnace", 2, 2, 2);
         furnace.fluids.fill(steam(20000), FluidAction.EXECUTE);
-        furnace.items.setStackInSlot(0, new ItemStack(Items.COAL));
-        furnace.items.setStackInSlot(1, new ItemStack(Items.RAW_IRON));
-        furnace.items.setStackInSlot(2, new ItemStack(Items.RAW_GOLD));
-        furnace.items.setStackInSlot(3, new ItemStack(Items.RAW_COPPER));
+        furnace.items.setStackInSlot(0, new ItemStack(Items.RAW_IRON));
+        furnace.items.setStackInSlot(1, new ItemStack(Items.RAW_GOLD));
+        furnace.items.setStackInSlot(2, new ItemStack(Items.RAW_COPPER));
         h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
-        h.runAfterDelay(500, () -> {
-            h.assertTrue(furnace.items.getStackInSlot(4).is(Items.IRON_INGOT), "Furnace iron lane");
-            h.assertTrue(furnace.items.getStackInSlot(5).is(Items.GOLD_INGOT), "Furnace gold lane");
+        h.runAfterDelay(20, () -> h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
+                "Running furnace melts snow above it"));
+        h.runAfterDelay(260, () -> {
+            h.assertTrue(furnace.items.getStackInSlot(3).is(Items.IRON_INGOT), "Furnace iron lane");
+            h.assertTrue(furnace.items.getStackInSlot(4).is(Items.GOLD_INGOT), "Furnace gold lane");
             h.assertTrue(
-                    furnace.items.getStackInSlot(6).is(Items.COPPER_INGOT), "Furnace copper lane");
-            h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
-                    "Running furnace melts snow above it");
+                    furnace.items.getStackInSlot(5).is(Items.COPPER_INGOT), "Furnace copper lane");
+            h.assertTrue(furnace.fluids.tank(0).getFluidAmount() == 20000 - 3 * 2000,
+                    "Each 200-tick smelt costs 2000 mB of steam");
             h.succeed();
         });
     }
     @GameTest(template = "empty", timeoutTicks = 40)
-    public static void hotIdleFurnaceStillMeltsSnow(GameTestHelper h) {
-        var furnace = place(h, "steam_furnace", 2, 2, 2);
-        furnace.temperature = 1500;
-        h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
-        h.runAfterDelay(1, () -> {
-            h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
-                    "Furnace without fuel melts snow while it is still hot");
-            furnace.temperature = 50;
-            h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
-            h.runAfterDelay(1, () -> {
-                h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).is(Blocks.SNOW),
-                        "Cool furnace does not melt snow");
-                h.succeed();
-            });
-        });
-    }
-    @GameTest(template = "empty", timeoutTicks = 40)
     public static void fullGeothermalBoilerStillMeltsSnow(GameTestHelper h) {
-        var geo = placeXml(h, "steam_boiler_geothermal", 2, 2, 2);
+        var geo = place(h, "steam_boiler_geothermal", 2, 2, 2);
         geo.fluids.tank(0).fill(steam(geo.fluids.tank(0).getCapacity()), FluidAction.EXECUTE);
         processor(geo, GeothermalBoilerProcessor.class).setTemperature(500);
         h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
@@ -1243,25 +1130,30 @@ public final class SteamGameTests {
             h.succeed();
         });
     }
-    @GameTest(template = "empty", timeoutTicks = 40)
-    public static void furnaceCoolingClearsResidualTemperature(GameTestHelper h) {
-        var furnace = place(h, "steam_furnace", 2, 2, 2);
-        furnace.temperature = 0.005f;
-        FurnaceOperation.smelt(furnace);
-        h.assertTrue(furnace.getTemperature() == 0,
-                "Cooling snaps negligible residual temperature to zero");
-        h.assertTrue(Float.isFinite(furnace.getTemperature()),
-                "Furnace temperature remains finite");
-        h.succeed();
+    /** Recipe-driven machines hold their work while powered, like every SteamAdvantage machine. */
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void poweredCrusherHoldsItsRecipe(GameTestHelper h) {
+        var crusher = place(h, "steam_crusher", 2, 2, 2);
+        h.setBlock(new BlockPos(3, 2, 2), Blocks.REDSTONE_BLOCK);
+        crusher.fluids.fill(steam(20000), FluidAction.EXECUTE);
+        crusher.items.setStackInSlot(0, new ItemStack(Items.COBBLESTONE));
+        h.runAfterDelay(20, () -> {
+            h.assertTrue(crusher.fluids.tank(0).getFluidAmount() == 20000
+                            && crusher.items.getStackInSlot(0).getCount() == 1
+                            && crusher.items.getStackInSlot(1).isEmpty(),
+                    "Powered crusher does not work");
+            h.succeed();
+        });
     }
     @GameTest(template = "empty", timeoutTicks = 40)
     public static void fullCrusherOutputDoesNotConsumeResources(GameTestHelper h) {
         var crusher = place(h, "steam_crusher", 2, 2, 2);
-        crusher.fluids.fill(steam(1000), FluidAction.EXECUTE);
+        crusher.fluids.fill(steam(20000), FluidAction.EXECUTE);
         crusher.items.setStackInSlot(0, new ItemStack(Items.COBBLESTONE));
-        crusher.items.setStackInSlot(4, new ItemStack(Items.GRAVEL, 64));
+        for (int slot = 1; slot <= 5; slot++)
+            crusher.items.setStackInSlot(slot, new ItemStack(Items.DIAMOND, 64));
         h.runAfterDelay(10, () -> {
-            h.assertTrue(crusher.fluids.tank(0).getFluidAmount() == 1000,
+            h.assertTrue(crusher.fluids.tank(0).getFluidAmount() == 20000,
                     "Blocked output preserves steam");
             h.assertTrue(crusher.items.getStackInSlot(0).getCount() == 1,
                     "Blocked output preserves input");
@@ -1269,35 +1161,21 @@ public final class SteamGameTests {
         });
     }
 
+    /**
+     * A test-only machine (gameTest resources, excluded from releases) extends the steam tank in
+     * XML alone, changing its capacity, and gets its own block, entity and processor.
+     */
     @GameTest(template = "empty")
-    public static void standaloneVariantNeedsNoJavaRegistration(GameTestHelper h) {
+    public static void xmlVariantNeedsNoJavaRegistration(GameTestHelper h) {
         var variant = place(h, "test_large_steam_tank", 2, 2, 2);
-        h.assertTrue(variant.getSteamCapacity() == 2345678, "MMDLib decoded variant capacity");
-        h.assertTrue(variant.items().getSlots() == 12, "MMDLib decoded variant inventory size");
+        h.assertTrue(variant.fluids.tank(0).getCapacity() == 2345678, "Inherited tank resized");
         h.assertTrue(net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE
                              .getKey(variant.getType())
                              .equals(ModContent.id("test_large_steam_tank")),
-                "Standalone block entity has its own ID");
-        h.assertTrue(zone.moddev.mc.lib.MMDLib.standaloneBlocks().containsKey(
-                             ModContent.id("test_large_steam_tank")),
-                "Variant came through MMDLib's standalone loader");
-        h.assertTrue(!zone.moddev.mc.lib.MMDLib.loadedMaterials().keySet().stream().anyMatch(
-                             id -> id.getNamespace().equals(SteamAdvantage.MODID)),
-                "No synthetic SteamAdvantage materials");
-        variant.fluids().fill(steam(1234567), FluidAction.EXECUTE);
-        var bound = zone.moddev.mc.lib.gui.Screens
-                            .get(net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE
-                                            .getKey(variant.getType()))
-                            .orElseThrow();
-        var element = bound.screen().find("steam").orElseThrow();
-        try {
-            var fluid = (FluidStack) bound.values().get(element).read(variant);
-            var capacity = (Number) bound.maxima().get(element).read(variant);
-            h.assertTrue(fluid.getAmount() == 1234567 && capacity.intValue() == 2345678,
-                    "XML getters bind to variant storage");
-        } catch (Throwable failure) {
-            throw new IllegalStateException("Bound XML getter failed", failure);
-        }
+                "Variant block entity has its own ID");
+        h.assertTrue(variant.features.allProcessors().stream()
+                             .anyMatch(SteamTankProcessor.class::isInstance),
+                "Variant inherits the tank processor");
         h.succeed();
     }
     @GameTest(template = "empty")
@@ -1324,33 +1202,28 @@ public final class SteamGameTests {
     }
 
     @GameTest(template = "empty")
-    public static void declarativeMenuRespectsHiddenSlotsAndRoles(GameTestHelper h) {
+    public static void declarativeMenuRespectsSlotRoles(GameTestHelper h) {
         var crusher = place(h, "steam_crusher", 2, 2, 2);
         var player = h.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
         player.setPos(crusher.getBlockPos().getX() + .5, crusher.getBlockPos().getY() + .5,
                 crusher.getBlockPos().getZ() + .5);
         var menu =
                 new zone.moddev.mc.lib.gui.runtime.MachineMenu(1, player.getInventory(), crusher);
-        h.assertTrue(menu.slots.get(0).isActive() && menu.slots.get(4).isActive(),
+        h.assertTrue(menu.slots.get(0).isActive() && menu.slots.get(1).isActive(),
                 "XML declares input/output slots");
-        h.assertTrue(!menu.slots.get(1).isActive()
-                        && !menu.slots.get(1).mayPlace(new ItemStack(Items.COBBLESTONE)),
-                "Undeclared slot refuses clicks");
-        h.assertTrue(!menu.slots.get(4).mayPlace(new ItemStack(Items.GRAVEL)),
+        h.assertTrue(!menu.slots.get(1).mayPlace(new ItemStack(Items.GRAVEL)),
                 "Output role refuses insertion");
         player.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 3));
-        // MMDLib 2.0.2 also adds armor and offhand slots, so locate hotbar slot 0 directly.
         int hotbar = menu.slots.stream()
                 .filter(slot -> slot.container == player.getInventory() && slot.getContainerSlot() == 0)
                 .findFirst().orElseThrow().index;
         menu.quickMoveStack(player, hotbar);
-        h.assertTrue(crusher.items().getStackInSlot(0).getCount() == 3,
+        h.assertTrue(crusher.items.getStackInSlot(0).getCount() == 3,
                 "Shift-click follows declared input");
-        crusher.items().setStackInSlot(4, new ItemStack(Items.GRAVEL, 2));
-        menu.quickMoveStack(player, 4);
+        crusher.items.setStackInSlot(1, new ItemStack(Items.GRAVEL, 2));
+        menu.quickMoveStack(player, 1);
         h.assertTrue(
                 player.getInventory().countItem(Items.GRAVEL) == 2, "Shift-click extracts output");
-        h.assertTrue(menu.slots.get(4).index == 4, "MMDLib preserves XML slot indices");
         h.assertTrue(menu.stillValid(player), "Nearby original host is valid");
         h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
         h.assertTrue(!menu.stillValid(player), "Removed host invalidates menu");
@@ -1379,8 +1252,8 @@ public final class SteamGameTests {
         h.succeed();
     }
     @GameTest(template = "empty")
-    public static void mismatchedScreenAndInvalidSettingsAreRejected(GameTestHelper h) {
-        var tank = placeXml(h, "steam_tank", 2, 2, 2);
+    public static void mismatchedScreenIsRejected(GameTestHelper h) {
+        var tank = place(h, "steam_tank", 2, 2, 2);
         var player = h.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
         var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(
                 io.netty.buffer.Unpooled.buffer(), h.getLevel().registryAccess());
@@ -1395,17 +1268,6 @@ public final class SteamGameTests {
             buffer.release();
         }
         h.assertTrue(rejected, "MMDLib rejects mismatched XML definitions");
-        var invalid = com.google.gson.JsonParser.parseString(
-                "{\"kind\":\"steam_boiler_coal\",\"steam_capacity\":1000,\"water_capacity\":0}");
-        boolean bad = false;
-        try {
-            bad = MachineSettings.CODEC.parse(com.mojang.serialization.JsonOps.INSTANCE, invalid)
-                          .error()
-                          .isPresent();
-        } catch (IllegalArgumentException expected) {
-            bad = true;
-        }
-        h.assertTrue(bad, "DFU settings reject missing mandatory storage");
         h.succeed();
     }
     @GameTest(template = "empty")

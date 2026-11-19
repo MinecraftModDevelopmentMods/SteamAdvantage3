@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<machine xmlns="https://moddev.zone/mmdlib/machine" version="1"
+         extends="steamadvantage:steam_base" name="Steam Furnace">
+  <appearance preset="model" model="steamadvantage:block/steam_furnace_model"/>
+  <storage>
+    <!-- Three independent smelting lanes share one steam tank. -->
+    <items id="Items">
+      <slots id="input_a" name="Input" count="1" role="input" color="#5080D0"/>
+      <slots id="input_b" name="Input" count="1" role="input" color="#5080D0"/>
+      <slots id="input_c" name="Input" count="1" role="input" color="#5080D0"/>
+      <slots id="output_a" name="Output" count="1" role="output" color="#D08050"/>
+      <slots id="output_b" name="Output" count="1" role="output" color="#D08050"/>
+      <slots id="output_c" name="Output" count="1" role="output" color="#D08050"/>
+    </items>
+    <fluids id="Fluids">
+      <tank id="steam" name="Steam" role="input" capacity="20000"
+            fluid="poweradvantage:steam" color="#C8C8C8"/>
+    </fluids>
+  </storage>
+  <redstone comparator-source="steamadvantage/comparator"/>
+  <!-- Every smelting recipe at its own cooking time; 200 ticks cost 2000 mB of steam. -->
+  <recipe-type id="steamadvantage:steam_smelting" declare="true" name="Steam Smelting">
+    <generator class="zone.moddev.mc.SteamAdvantage.recipes.SteamSmeltingRecipes"/>
+  </recipe-type>
+  <processor id="lane_a" recipe-type="steamadvantage:steam_smelting" primary="true"
+             bindings="input=input_a output=output_a steam=steam"/>
+  <processor id="lane_b" recipe-type="steamadvantage:steam_smelting"
+             bindings="input=input_b output=output_b steam=steam"/>
+  <processor id="lane_c" recipe-type="steamadvantage:steam_smelting"
+             bindings="input=input_c output=output_c steam=steam"/>
+  <processor id="sensor" class="zone.moddev.mc.SteamAdvantage.machines.RecipeMachineSensor"/>
+</machine>

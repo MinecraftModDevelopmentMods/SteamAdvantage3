@@ -16,7 +16,7 @@ public final class SteamAdvantage {
         container.registerConfig(ModConfig.Type.COMMON, SteamConfig.SPEC);
         ModContent.register(bus);
         // XML machines use SteamMachineEntity, which imports saves from before the XML port.
-        for (String machine : ModContent.XML_MACHINES)
+        for (String machine : ModContent.MACHINES)
             zone.moddev.mc.lib.machine.neoforge.MachineContent.registerEntityFactory(
                     ModContent.id(machine),
                     zone.moddev.mc.SteamAdvantage.machines.SteamMachineEntity::new);

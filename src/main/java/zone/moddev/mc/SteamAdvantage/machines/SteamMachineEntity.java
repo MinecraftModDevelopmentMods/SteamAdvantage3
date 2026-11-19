@@ -78,6 +78,17 @@ public class SteamMachineEntity extends DefinedMachineEntity {
         super.dropContents(level, pos);
     }
 
+    /**
+     * Like SA2, a recipe-driven machine (crusher, furnace) holds its work while it receives a
+     * redstone signal. Custom processors check the signal themselves.
+     */
+    @Override
+    protected boolean processingAllowed() {
+        return super.processingAllowed() && !(level != null
+                && definition.processors().stream().anyMatch(lane -> lane.recipeType() != null)
+                && level.hasNeighborSignal(worldPosition));
+    }
+
     /** Turning a drill to face elsewhere removes the pipe it had extended. */
     @Override
     @SuppressWarnings("deprecation")
@@ -104,6 +115,8 @@ public class SteamMachineEntity extends DefinedMachineEntity {
         return switch (definition.id().getPath()) {
             case "steam_crusher" -> slot -> slot == 0 ? 0 : slot >= 4 ? slot - 3 : -1;
             case "steam_drill" -> slot -> slot >= 4 ? slot - 4 : -1;
+            // Fuel (0) and the unused outputs (7, 8) have no place; they go to recovery.
+            case "steam_furnace" -> slot -> slot >= 1 && slot <= 6 ? slot - 1 : -1;
             default -> IntUnaryOperator.identity();
         };
     }

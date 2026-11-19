@@ -1,0 +1,81 @@
+{
+    data: [],
+    palette: [],
+    Burn: 0,
+    Depth: 0,
+    DistillationDuration: 0,
+    DrillPhase: 0,
+    DrillRetractionTicks: 0,
+    ElevatorHeight: 0,
+    Fluids: {
+        Recovery: [],
+        Tanks: [
+            {},
+            {
+                Fluid: {
+                    amount: 2000,
+                    id: "minecraft:water"
+                }
+            }
+        ]
+    },
+    Items: {
+        Items: [],
+        Recovery: [],
+        Size: 9
+    },
+    Progress: [I; 0, 0, 0],
+    Raised: 0b,
+    Temperature: 0.0f,
+    TotalBurn: 0,
+    automation: {
+        groups: {
+            product: {
+                contents: [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                ],
+                sides: {
+                    back: "output",
+                    bottom: "output",
+                    front: "output",
+                    left: "output",
+                    right: "output",
+                    top: "output"
+                }
+            },
+            steam: {
+                contents: [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                ],
+                sides: {
+                    back: "input",
+                    bottom: "input",
+                    front: "input",
+                    left: "input",
+                    right: "input",
+                    top: "input"
+                }
+            }
+        },
+        recovery: [],
+        refund: 0L,
+        transfers: {},
+        version: 1
+    },
+    features: {},
+    id: "steamadvantage:steam_pump"
+}
