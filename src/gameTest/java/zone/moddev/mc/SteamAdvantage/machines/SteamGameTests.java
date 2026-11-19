@@ -49,6 +49,11 @@ public final class SteamGameTests {
             case "steam_boiler_electric" -> m.energy.setStored(m.energy.capacity() * fraction / 2);
             case "steam_boiler_coal" -> m.items.setStackInSlot(0, fraction == 0 ? ItemStack.EMPTY
                     : new ItemStack(Items.COAL, fraction * 32));
+            case "steam_drill" -> {
+                for (int slot = 0; slot < 5; slot++)
+                    m.items.setStackInSlot(slot, fraction == 0 ? ItemStack.EMPTY
+                            : new ItemStack(Items.COAL, fraction * 32));
+            }
             default -> {
                 String kind = m.definition.id().getPath();
                 int index = kind.equals("steam_boiler_oil") || kind.equals("steam_still") ? 2
@@ -73,14 +78,14 @@ public final class SteamGameTests {
             BlockPos origin = new BlockPos(2, 2, 2);
             h.setBlock(origin, ModContent.block("steam_drill").defaultBlockState()
                     .setValue(facing, direction));
-            var drill = (SteamMachine) h.getLevel().getBlockEntity(h.absolutePos(origin));
+            var drill = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity) h.getLevel().getBlockEntity(h.absolutePos(origin));
+            var dp = processor(drill, DrillProcessor.class);
             var bit = ModContent.block("drillbit").defaultBlockState().setValue(facing, direction);
             BlockPos isolated = new BlockPos(6, 2, 6);
             for (int scenario = 0; scenario < 3; scenario++) {
                 for (int n = 1; n <= 3; n++) h.setBlock(origin.relative(direction, n), bit);
                 h.setBlock(isolated, bit);
-                drill.depth = 3;
-                drill.progress[0] = 12;
+                dp.set(3, DrillProcessor.DRILLING, 12);
                 if (scenario == 0)
                     h.getLevel().destroyBlock(h.absolutePos(origin.relative(direction, 2)), true);
                 else if (scenario == 1)
@@ -92,7 +97,7 @@ public final class SteamGameTests {
                             "Connected bit removed: " + direction + " scenario " + scenario);
                 h.assertTrue(h.getBlockState(isolated).is(ModContent.block("drillbit")),
                         "Disconnected bit preserved");
-                h.assertTrue(drill.depth == 0 && drill.progress[0] == 0, "Drill progress reset");
+                h.assertTrue(dp.depth() == 0 && dp.progress() == 0, "Drill progress reset");
                 if (scenario == 1)
                     h.setBlock(origin, drill.getBlockState().setValue(facing, direction));
             }
@@ -103,43 +108,46 @@ public final class SteamGameTests {
 
     @GameTest(template = "empty")
     public static void drillRetractsGraduallyAndWaitsForReset(GameTestHelper h) {
-        var drill = place(h, "steam_drill", 2, 2, 2);
+        var drill = placeXml(h, "steam_drill", 2, 2, 2);
+        var dp = processor(drill, DrillProcessor.class);
         var facing = net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING;
         h.setBlock(new BlockPos(2, 2, 2), drill.getBlockState().setValue(facing, Direction.UP));
         var bit = ModContent.block("drillbit").defaultBlockState().setValue(facing, Direction.UP);
         for (int n = 1; n <= 3; n++) h.setBlock(new BlockPos(2, 2 + n, 2), bit);
         h.setBlock(new BlockPos(2, 6, 2), Blocks.BEDROCK);
-        drill.depth = 3;
-        DrillOperation.drill(drill);
-        h.assertTrue(drill.drillPhase == 1, "Bedrock starts retraction without steam");
-        for (int n = 0; n < 4; n++) DrillOperation.drill(drill);
-        h.assertTrue(drill.depth == 2 && h.getBlockState(new BlockPos(2, 5, 2)).isAir(),
+        dp.set(3, DrillProcessor.DRILLING, 0);
+        dp.step();
+        h.assertTrue(dp.phase() == DrillProcessor.RETRACTING, "Bedrock starts retraction without steam");
+        for (int n = 0; n < 4; n++) dp.step();
+        h.assertTrue(dp.depth() == 2 && h.getBlockState(new BlockPos(2, 5, 2)).isAir(),
                 "Only the outermost segment retracts first");
         h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).is(ModContent.block("drillbit")),
                 "Inner line survives controlled retraction");
         var saved = drill.saveWithoutMetadata(h.getLevel().registryAccess());
         drill.loadWithComponents(saved, h.getLevel().registryAccess());
-        h.assertTrue(drill.drillPhase == 1 && drill.depth == 2, "Retraction survives save/load");
-        for (int n = 0; n < 20; n++) DrillOperation.drill(drill);
-        h.assertTrue(drill.depth == 0 && drill.drillPhase == 2, "Drill stays retracted");
+        h.assertTrue(dp.phase() == DrillProcessor.RETRACTING && dp.depth() == 2,
+                "Retraction survives save/load");
+        for (int n = 0; n < 20; n++) dp.step();
+        h.assertTrue(dp.depth() == 0 && dp.phase() == DrillProcessor.RETRACTED, "Drill stays retracted");
         drill.fluids.fill(steam(10000), FluidAction.EXECUTE);
-        for (int n = 0; n < 10; n++) DrillOperation.drill(drill);
-        h.assertTrue(drill.depth == 0, "Steam does not restart completed drill");
+        for (int n = 0; n < 10; n++) dp.step();
+        h.assertTrue(dp.depth() == 0, "Steam does not restart completed drill");
         h.setBlock(new BlockPos(3, 2, 2), Blocks.REDSTONE_BLOCK);
-        SteamMachine.tick(h.getLevel(), drill.getBlockPos(), drill.getBlockState(), drill);
-        h.assertTrue(drill.drillPhase == 0, "Redstone resets completion");
-        h.setBlock(new BlockPos(3, 2, 2), Blocks.AIR);
-        DrillOperation.drill(drill);
-        h.assertTrue(drill.depth == 1, "Drilling resumes after reset");
-        drill.clearDrill();
-        drill.depth = DrillOperation.MAX_RANGE;
-        DrillOperation.drill(drill);
-        h.assertTrue(drill.drillPhase == 1, "Maximum range also starts retraction");
-        drill.clearDrill();
-        drill.drillPhase = 2;
-        h.setBlock(new BlockPos(2, 2, 2), drill.getBlockState().setValue(facing, Direction.DOWN));
-        h.assertTrue(drill.drillPhase == 0, "Rotation resets completion");
-        h.succeed();
+        h.runAfterDelay(2, () -> {
+            h.assertTrue(dp.phase() == DrillProcessor.DRILLING, "Redstone resets completion");
+            h.setBlock(new BlockPos(3, 2, 2), Blocks.AIR);
+            dp.step();
+            h.assertTrue(dp.depth() == 1, "Drilling resumes after reset");
+            dp.clear();
+            dp.set(DrillProcessor.MAX_RANGE, DrillProcessor.DRILLING, 0);
+            dp.step();
+            h.assertTrue(dp.phase() == DrillProcessor.RETRACTING, "Maximum range also starts retraction");
+            dp.clear();
+            dp.set(0, DrillProcessor.RETRACTED, 0);
+            h.setBlock(new BlockPos(2, 2, 2), drill.getBlockState().setValue(facing, Direction.DOWN));
+            h.assertTrue(dp.phase() == DrillProcessor.DRILLING, "Rotation resets completion");
+            h.succeed();
+        });
     }
 
     @GameTest(template = "empty")
@@ -229,25 +237,25 @@ public final class SteamGameTests {
 
     @GameTest(template = "empty")
     public static void drillReturnsNormalBlockDropsWithoutCrushing(GameTestHelper h) {
-        var drill = place(h, "steam_drill", 3, 2, 3);
+        var drill = placeXml(h, "steam_drill", 3, 2, 3);
+        var dp = processor(drill, DrillProcessor.class);
         var target = new BlockPos(3, 2, 2);
         // Cobblestone and bricks have crushing recipes; the drill must not apply them.
         for (var block : new net.minecraft.world.level.block.Block[] {
                 Blocks.STONE, Blocks.COBBLESTONE, Blocks.BRICKS, Blocks.DIRT}) {
             h.setBlock(target, block);
-            drill.depth = 0;
-            drill.progress[0] = 0;
+            dp.set(0, DrillProcessor.DRILLING, 0);
             drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
-            for (int slot = 4; slot < 9; slot++) drill.items.setStackInSlot(slot, ItemStack.EMPTY);
-            int ticks = DrillOperation.breakTicks(block.defaultBlockState(), h.getLevel(), h.absolutePos(target));
-            for (int tick = 0; tick < ticks; tick++) DrillOperation.drill(drill);
+            for (int slot = 0; slot < 5; slot++) drill.items.setStackInSlot(slot, ItemStack.EMPTY);
+            int ticks = DrillProcessor.breakTicks(block.defaultBlockState(), h.getLevel(), h.absolutePos(target));
+            for (int tick = 0; tick < ticks; tick++) dp.step();
             var expected = block == Blocks.STONE ? Items.COBBLESTONE : block.asItem();
-            h.assertTrue(drill.items.getStackInSlot(4).is(expected)
-                            && drill.items.getStackInSlot(4).getCount() == 1,
+            h.assertTrue(drill.items.getStackInSlot(0).is(expected)
+                            && drill.items.getStackInSlot(0).getCount() == 1,
                     "Normal block drop for " + block);
-            h.assertTrue(drill.depth == 1 && h.getBlockState(target).is(ModContent.block("drillbit")),
+            h.assertTrue(dp.depth() == 1 && h.getBlockState(target).is(ModContent.block("drillbit")),
                     "Mining replaces the block with one drill segment");
-            for (int slot = 5; slot < 9; slot++)
+            for (int slot = 1; slot < 5; slot++)
                 h.assertTrue(drill.items.getStackInSlot(slot).isEmpty(), "No extra drops");
         }
         h.succeed();
@@ -255,24 +263,25 @@ public final class SteamGameTests {
 
     @GameTest(template = "empty")
     public static void drillWaitsForOutputCapacity(GameTestHelper h) {
-        var drill = place(h, "steam_drill", 3, 2, 3);
+        var drill = placeXml(h, "steam_drill", 3, 2, 3);
+        var dp = processor(drill, DrillProcessor.class);
         var target = new BlockPos(3, 2, 2);
         h.setBlock(target, Blocks.COBBLESTONE);
         h.setBlock(new BlockPos(3, 2, 1), Blocks.BEDROCK);
         drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
-        for (int slot = 4; slot < 9; slot++)
+        for (int slot = 0; slot < 5; slot++)
             drill.items.setStackInSlot(slot, new ItemStack(Items.DIAMOND, 64));
-        for (int tick = 0; tick < 30; tick++) DrillOperation.drill(drill);
-        h.assertTrue(h.getBlockState(target).is(Blocks.COBBLESTONE) && drill.depth == 0
-                        && drill.progress[0] == 0 && drill.fluids.tank(0).getFluidAmount() == 5000,
+        for (int tick = 0; tick < 30; tick++) dp.step();
+        h.assertTrue(h.getBlockState(target).is(Blocks.COBBLESTONE) && dp.depth() == 0
+                        && dp.progress() == 0 && drill.fluids.tank(0).getFluidAmount() == 5000,
                 "Full output preserves target, depth, progress and steam");
-        drill.items.setStackInSlot(6, new ItemStack(Items.COBBLESTONE, 63));
-        int ticks = DrillOperation.breakTicks(Blocks.COBBLESTONE.defaultBlockState(), h.getLevel(), h.absolutePos(target));
-        for (int tick = 0; tick < ticks; tick++) DrillOperation.drill(drill);
-        h.assertTrue(drill.items.getStackInSlot(6).getCount() == 64 && drill.depth == 1,
+        drill.items.setStackInSlot(2, new ItemStack(Items.COBBLESTONE, 63));
+        int ticks = DrillProcessor.breakTicks(Blocks.COBBLESTONE.defaultBlockState(), h.getLevel(), h.absolutePos(target));
+        for (int tick = 0; tick < ticks; tick++) dp.step();
+        h.assertTrue(drill.items.getStackInSlot(2).getCount() == 64 && dp.depth() == 1,
                 "Mining resumes once there is room");
-        for (int tick = 0; tick < 8; tick++) DrillOperation.drill(drill);
-        h.assertTrue(drill.items.getStackInSlot(6).getCount() == 64,
+        for (int tick = 0; tick < 8; tick++) dp.step();
+        h.assertTrue(drill.items.getStackInSlot(2).getCount() == 64,
                 "Subsequent ticks do not duplicate output");
         h.succeed();
     }
@@ -325,13 +334,14 @@ public final class SteamGameTests {
                 h.assertTrue(m.comparatorSignal() == 0, kind + " ignores unrelated steam fullness");
             }
         }
-        var drill = place(h, "steam_drill", 2, 2, 2);
-        drill.items.setStackInSlot(4, new ItemStack(Items.WATER_BUCKET));
-        h.assertTrue(drill.comparatorSignal() == 3, "Nonstackable item fills one of five drill slots");
-        drill.items.setStackInSlot(4, new ItemStack(Items.ENDER_PEARL, 8));
-        h.assertTrue(drill.comparatorSignal() == 1, "Sixteen-stack item fullness is normalized");
-        drill.items.setStackInSlot(4, new ItemStack(Items.COAL));
-        h.assertTrue(drill.comparatorSignal() == 1, "Nonempty inventory has a minimum signal of one");
+        var drill = placeXml(h, "steam_drill", 2, 2, 2);
+        var reading = processor(drill, DrillProcessor.class).redstoneOutputs().getFirst().signal();
+        drill.items.setStackInSlot(0, new ItemStack(Items.WATER_BUCKET));
+        h.assertTrue(reading.getAsInt() == 3, "Nonstackable item fills one of five drill slots");
+        drill.items.setStackInSlot(0, new ItemStack(Items.ENDER_PEARL, 8));
+        h.assertTrue(reading.getAsInt() == 1, "Sixteen-stack item fullness is normalized");
+        drill.items.setStackInSlot(0, new ItemStack(Items.COAL));
+        h.assertTrue(reading.getAsInt() == 1, "Nonempty inventory has a minimum signal of one");
         h.succeed();
     }
 
@@ -868,6 +878,22 @@ public final class SteamGameTests {
                 m.fluids().tank(1).fill(new FluidStack(Fluids.WATER, 2000), FluidAction.EXECUTE),
                 tag -> {});
         h.assertTrue(pump.fluids.tank(1).getFluidAmount() == 2000, "Pumped fluid stays in tank 1");
+
+        var drill = importLegacy(h, "steam_drill", m -> {
+            m.items().setStackInSlot(4, new ItemStack(Items.COBBLESTONE, 12));
+            m.items().setStackInSlot(8, new ItemStack(Items.FLINT, 2));
+            m.depth = 9;
+            m.drillPhase = 1;
+            m.drillRetractionTicks = 2;
+            m.progress[0] = 5;
+        }, tag -> {});
+        var bore = processor(drill, DrillProcessor.class);
+        h.assertTrue(drill.items.getStackInSlot(0).getCount() == 12
+                        && drill.items.getStackInSlot(4).is(Items.FLINT),
+                "Drill output slots 4-8 move to 0-4");
+        h.assertTrue(bore.depth() == 9 && bore.phase() == DrillProcessor.RETRACTING
+                        && bore.progress() == 5,
+                "Drill depth, phase and progress imported");
         h.succeed();
     }
     @GameTest(template = "empty")
@@ -961,16 +987,19 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void drillMovesAlongTrackWithoutLosingInventory(GameTestHelper h) {
-        var drill = place(h, "steam_drill", 3, 2, 3);
+        var drill = placeXml(h, "steam_drill", 3, 2, 3);
         drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
-        drill.items.setStackInSlot(4, new ItemStack(Items.DIAMOND, 3));
+        drill.items.setStackInSlot(0, new ItemStack(Items.DIAMOND, 3));
         h.setBlock(new BlockPos(3, 2, 2), Blocks.BEDROCK);
         h.setBlock(new BlockPos(4, 2, 3), ModContent.block("steam_track"));
         h.runAfterDelay(5, () -> {
             var moved = h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(4, 2, 3)));
-            h.assertTrue(moved instanceof SteamMachine, "Drill follows track");
-            h.assertTrue(((SteamMachine) moved).items.getStackInSlot(4).getCount() == 3,
+            h.assertTrue(moved instanceof SteamMachineEntity, "Drill follows track");
+            h.assertTrue(((SteamMachineEntity) moved).items.getStackInSlot(0).getCount() == 3,
                     "Drill preserves inventory");
+            h.assertTrue(h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                            new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(3, 2, 3))).inflate(2))
+                            .isEmpty(), "Moving drops nothing");
             h.assertTrue(h.getBlockState(new BlockPos(3, 2, 3)).is(ModContent.block("steam_pipe")),
                     "Drill leaves steam pipe");
             h.succeed();
@@ -981,25 +1010,25 @@ public final class SteamGameTests {
         var level = h.getLevel();
         var p = h.absolutePos(BlockPos.ZERO);
         // SA2 timing at the default 12 ticks per hardness, minimum 6.
-        h.assertTrue(DrillOperation.breakTicks(Blocks.STONE.defaultBlockState(), level, p) == 18,
+        h.assertTrue(DrillProcessor.breakTicks(Blocks.STONE.defaultBlockState(), level, p) == 18,
                 "Stone breaks in 18 ticks");
-        h.assertTrue(DrillOperation.breakTicks(Blocks.DIRT.defaultBlockState(), level, p) == 6,
+        h.assertTrue(DrillProcessor.breakTicks(Blocks.DIRT.defaultBlockState(), level, p) == 6,
                 "Dirt breaks in 6 ticks");
-        h.assertTrue(DrillOperation.breakTicks(Blocks.IRON_ORE.defaultBlockState(), level, p) == 36,
+        h.assertTrue(DrillProcessor.breakTicks(Blocks.IRON_ORE.defaultBlockState(), level, p) == 36,
                 "Iron ore breaks in 36 ticks");
-        h.assertTrue(DrillOperation.breakTicks(Blocks.OBSIDIAN.defaultBlockState(), level, p) == 600,
+        h.assertTrue(DrillProcessor.breakTicks(Blocks.OBSIDIAN.defaultBlockState(), level, p) == 600,
                 "Obsidian breaks in 600 ticks");
         h.succeed();
     }
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void starvedDrillPausesInsteadOfRetracting(GameTestHelper h) {
-        var drill = place(h, "steam_drill", 3, 2, 3);
+        var drill = placeXml(h, "steam_drill", 3, 2, 3);
         // Enough steam for one pipe segment through air, then starved.
         drill.fluids.fill(steam(300), FluidAction.EXECUTE);
         h.runAfterDelay(5, () -> {
             h.assertTrue(h.getBlockState(new BlockPos(3, 2, 2)).is(ModContent.block("drillbit")),
                     "Starved drill keeps its pipe extended");
-            h.assertTrue(drill.getDrillDepth() == 1, "Starved drill keeps its depth");
+            h.assertTrue(SteamScreens.drillDepth(drill) == 1, "Starved drill keeps its depth");
             h.succeed();
         });
     }

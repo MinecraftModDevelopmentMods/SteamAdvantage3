@@ -32,6 +32,9 @@ public class SteamMachineEntity extends DefinedMachineEntity {
             "Progress", "PendingDistillation", "DistillationDuration", "Depth", "DrillPhase",
             "DrillRetractionTicks", "Raised", "ElevatorHeight", "Energy");
 
+    /** Set while a drill moves itself along a track; its contents went with it. */
+    boolean relocating;
+
     public SteamMachineEntity(BlockEntityType<?> type, BlockPos pos, BlockState state,
             MachineDefinition definition, @Nullable MachineRecipeType recipes) {
         super(type, pos, state, definition, recipes);
@@ -59,6 +62,35 @@ public class SteamMachineEntity extends DefinedMachineEntity {
         converted.put("features", saved);
         LEGACY_KEYS.forEach(converted::remove);
         return converted;
+    }
+
+    /**
+     * Removing a drill also removes its pipe. MMDLib calls this only when the machine block is
+     * really replaced, never on chunk unload.
+     */
+    @Override
+    public void dropContents(net.minecraft.world.level.Level level, BlockPos pos) {
+        if (relocating)
+            return;
+        features.allProcessors().stream()
+                .filter(DrillProcessor.class::isInstance)
+                .forEach(drill -> ((DrillProcessor) drill).clear());
+        super.dropContents(level, pos);
+    }
+
+    /** Turning a drill to face elsewhere removes the pipe it had extended. */
+    @Override
+    @SuppressWarnings("deprecation")
+    public void setBlockState(BlockState state) {
+        var level = getLevel();
+        if (level != null && !level.isClientSide && state.is(getBlockState().getBlock())
+                && state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING)
+                && state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING)
+                        != getBlockState().getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING))
+            features.allProcessors().stream()
+                    .filter(DrillProcessor.class::isInstance)
+                    .forEach(drill -> ((DrillProcessor) drill).clear());
+        super.setBlockState(state);
     }
 
     /**

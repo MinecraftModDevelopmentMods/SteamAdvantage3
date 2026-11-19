@@ -47,7 +47,7 @@ public final class ModContent {
     public static final List<String> XML_MACHINES =
             List.of("steam_boiler_coal", "steam_boiler_electric", "steam_boiler_geothermal",
                     "steam_boiler_oil", "steam_tank", "steam_elevator", "steam_still",
-                    "steam_pump", "steam_switch");
+                    "steam_pump", "steam_switch", "steam_drill");
     private ModContent() {}
     public static ResourceLocation id(String path) {
         return ResourceLocation.fromNamespaceAndPath(SteamAdvantage.MODID, path);

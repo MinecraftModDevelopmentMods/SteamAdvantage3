@@ -33,6 +33,14 @@ public final class SteamScreens {
         return GeothermalBoilerProcessor.MAX_TEMPERATURE;
     }
 
+    public static int drillDepth(DefinedMachineEntity machine) {
+        return processor(machine, DrillProcessor.class).map(DrillProcessor::depth).orElse(0);
+    }
+
+    public static int drillRange(DefinedMachineEntity machine) {
+        return DrillProcessor.MAX_RANGE;
+    }
+
     public static int distillProgress(DefinedMachineEntity machine) {
         return processor(machine, StillProcessor.class).map(StillProcessor::progress).orElse(0);
     }

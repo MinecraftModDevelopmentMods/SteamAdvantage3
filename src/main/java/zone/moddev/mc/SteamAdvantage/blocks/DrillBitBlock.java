@@ -12,7 +12,6 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import zone.moddev.mc.SteamAdvantage.init.ModContent;
-import zone.moddev.mc.SteamAdvantage.machines.SteamMachine;
 
 public final class DrillBitBlock extends zone.moddev.mc.lib.common.runtime.MaterialEntityBlock<DrillBitBlockEntity> {
     // Removing a segment invokes onRemove again; keep long lines off the call stack.
@@ -48,8 +47,11 @@ public final class DrillBitBlock extends zone.moddev.mc.lib.common.runtime.Mater
                                     ModContent.block("steam_drill"))
                             && level.getBlockState(cursor).getValue(BlockStateProperties.FACING)
                                     == direction.getOpposite()
-                            && level.getBlockEntity(cursor) instanceof SteamMachine drill) {
-                        drill.clearDrill();
+                            && level.getBlockEntity(cursor)
+                                    instanceof zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity drill) {
+                        drill.features.allProcessors().stream()
+                                .filter(zone.moddev.mc.SteamAdvantage.machines.DrillProcessor.class::isInstance)
+                                .forEach(p -> ((zone.moddev.mc.SteamAdvantage.machines.DrillProcessor) p).clear());
                         drill.setChanged();
                     }
                 }
