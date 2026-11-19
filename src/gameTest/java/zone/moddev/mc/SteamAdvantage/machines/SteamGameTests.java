@@ -187,67 +187,52 @@ public final class SteamGameTests {
     }
 
     @GameTest(template = "empty")
-    public static void drillUsesCrushingRecipesAndFallsBackToNormalDrops(GameTestHelper h) {
+    public static void drillReturnsNormalBlockDropsWithoutCrushing(GameTestHelper h) {
         var drill = place(h, "steam_drill", 3, 2, 3);
         var target = new BlockPos(3, 2, 2);
-        drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
+        // Cobblestone and bricks have crushing recipes; the drill must not apply them.
         for (var block : new net.minecraft.world.level.block.Block[] {
-                Blocks.COBBLESTONE, Blocks.BRICKS, Blocks.DIRT}) {
+                Blocks.STONE, Blocks.COBBLESTONE, Blocks.BRICKS, Blocks.DIRT}) {
             h.setBlock(target, block);
             drill.depth = 0;
             drill.progress[0] = 0;
+            drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
             for (int slot = 4; slot < 9; slot++) drill.items.setStackInSlot(slot, ItemStack.EMPTY);
-            if (block == Blocks.DIRT)
-                h.assertTrue(h.getLevel().getRecipeManager().getRecipeFor(
-                                zone.moddev.mc.lib.common.recipes.CrushingRecipe.TYPE.get(),
-                                new net.minecraft.world.item.crafting.SingleRecipeInput(new ItemStack(block)),
-                                h.getLevel()).isEmpty(), "Fallback block has no crushing recipe");
             int ticks = DrillOperation.breakTicks(block.defaultBlockState(), h.getLevel(), h.absolutePos(target));
             for (int tick = 0; tick < ticks; tick++) DrillOperation.drill(drill);
-            var expected = block == Blocks.COBBLESTONE ? Items.GRAVEL
-                    : block == Blocks.BRICKS ? Items.BRICK : Items.DIRT;
-            int count = block == Blocks.BRICKS ? 4 : 1;
+            var expected = block == Blocks.STONE ? Items.COBBLESTONE : block.asItem();
             h.assertTrue(drill.items.getStackInSlot(4).is(expected)
-                            && drill.items.getStackInSlot(4).getCount() == count,
-                    "Correct crushing/fallback output for " + block);
+                            && drill.items.getStackInSlot(4).getCount() == 1,
+                    "Normal block drop for " + block);
             h.assertTrue(drill.depth == 1 && h.getBlockState(target).is(ModContent.block("drillbit")),
                     "Mining replaces the block with one drill segment");
             for (int slot = 5; slot < 9; slot++)
-                h.assertTrue(drill.items.getStackInSlot(slot).isEmpty(), "No extra normal drops");
+                h.assertTrue(drill.items.getStackInSlot(slot).isEmpty(), "No extra drops");
         }
         h.succeed();
     }
 
     @GameTest(template = "empty")
-    public static void drillWaitsForCompleteCrushingOutputCapacity(GameTestHelper h) {
+    public static void drillWaitsForOutputCapacity(GameTestHelper h) {
         var drill = place(h, "steam_drill", 3, 2, 3);
         var target = new BlockPos(3, 2, 2);
-        h.setBlock(target, Blocks.BRICKS);
+        h.setBlock(target, Blocks.COBBLESTONE);
         h.setBlock(new BlockPos(3, 2, 1), Blocks.BEDROCK);
         drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
         for (int slot = 4; slot < 9; slot++)
             drill.items.setStackInSlot(slot, new ItemStack(Items.DIAMOND, 64));
-        drill.items.setStackInSlot(4, new ItemStack(Items.BRICK, 63));
-        for (int tick = 0; tick < 20; tick++) DrillOperation.drill(drill);
-        h.assertTrue(h.getBlockState(target).is(Blocks.BRICKS) && drill.depth == 0
+        for (int tick = 0; tick < 30; tick++) DrillOperation.drill(drill);
+        h.assertTrue(h.getBlockState(target).is(Blocks.COBBLESTONE) && drill.depth == 0
                         && drill.progress[0] == 0 && drill.fluids.tank(0).getFluidAmount() == 5000,
                 "Full output preserves target, depth, progress and steam");
-        drill.items.setStackInSlot(5, new ItemStack(Items.BRICK, 62));
-        DrillOperation.drill(drill);
-        h.assertTrue(drill.items.getStackInSlot(4).getCount() == 63
-                        && drill.items.getStackInSlot(5).getCount() == 62
-                        && drill.fluids.tank(0).getFluidAmount() == 5000,
-                "Three spaces cannot partially accept a four-brick recipe");
-        drill.items.setStackInSlot(5, new ItemStack(Items.BRICK, 61));
-        int ticks = DrillOperation.breakTicks(Blocks.BRICKS.defaultBlockState(), h.getLevel(), h.absolutePos(target));
+        drill.items.setStackInSlot(6, new ItemStack(Items.COBBLESTONE, 63));
+        int ticks = DrillOperation.breakTicks(Blocks.COBBLESTONE.defaultBlockState(), h.getLevel(), h.absolutePos(target));
         for (int tick = 0; tick < ticks; tick++) DrillOperation.drill(drill);
-        h.assertTrue(drill.items.getStackInSlot(4).getCount() == 64
-                        && drill.items.getStackInSlot(5).getCount() == 64 && drill.depth == 1,
-                "Mining resumes and distributes the complete recipe across output slots");
+        h.assertTrue(drill.items.getStackInSlot(6).getCount() == 64 && drill.depth == 1,
+                "Mining resumes once there is room");
         for (int tick = 0; tick < 8; tick++) DrillOperation.drill(drill);
-        h.assertTrue(drill.items.getStackInSlot(4).getCount() == 64
-                        && drill.items.getStackInSlot(5).getCount() == 64,
-                "Subsequent ticks do not duplicate crushing output");
+        h.assertTrue(drill.items.getStackInSlot(6).getCount() == 64,
+                "Subsequent ticks do not duplicate output");
         h.succeed();
     }
 
@@ -824,13 +809,15 @@ public final class SteamGameTests {
     public static void drillBreaksBlocksAtDiamondPickaxeSpeed(GameTestHelper h) {
         var level = h.getLevel();
         var p = h.absolutePos(BlockPos.ZERO);
-        // Vanilla diamond pickaxe ticks: stone 1.5*30/8, dirt (wrong tool) 0.5*30/1, obsidian 50*30/8.
-        h.assertTrue(DrillOperation.breakTicks(Blocks.STONE.defaultBlockState(), level, p) == 6,
-                "Stone breaks in 6 ticks");
-        h.assertTrue(DrillOperation.breakTicks(Blocks.DIRT.defaultBlockState(), level, p) == 15,
-                "Dirt breaks in 15 ticks");
-        h.assertTrue(DrillOperation.breakTicks(Blocks.OBSIDIAN.defaultBlockState(), level, p) == 188,
-                "Obsidian breaks in 188 ticks");
+        // SA2 timing at the default 12 ticks per hardness, minimum 6.
+        h.assertTrue(DrillOperation.breakTicks(Blocks.STONE.defaultBlockState(), level, p) == 18,
+                "Stone breaks in 18 ticks");
+        h.assertTrue(DrillOperation.breakTicks(Blocks.DIRT.defaultBlockState(), level, p) == 6,
+                "Dirt breaks in 6 ticks");
+        h.assertTrue(DrillOperation.breakTicks(Blocks.IRON_ORE.defaultBlockState(), level, p) == 36,
+                "Iron ore breaks in 36 ticks");
+        h.assertTrue(DrillOperation.breakTicks(Blocks.OBSIDIAN.defaultBlockState(), level, p) == 600,
+                "Obsidian breaks in 600 ticks");
         h.succeed();
     }
     @GameTest(template = "empty", timeoutTicks = 80)

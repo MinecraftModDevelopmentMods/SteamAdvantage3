@@ -5,8 +5,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.crafting.SingleRecipeInput;
-import zone.moddev.mc.lib.common.recipes.CrushingRecipe;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -97,15 +95,13 @@ final class DrillOperation {
         machine.depth++;
     }
 
+    /**
+     * Normal block drops, as if mined with the drill's pickaxe. SA2 also ran the block through
+     * the crusher, but with tags such as Mineralogy's (every rock in c:cobblestones) that turned
+     * most of the stone it mined into gravel.
+     */
     private static java.util.List<ItemStack> miningDrops(BlockState state,
             net.minecraft.server.level.ServerLevel level, BlockPos target) {
-        // SA2 crushed the block itself, rather than each item in its loot table.
-        var input = new SingleRecipeInput(new ItemStack(state.getBlock()));
-        if (!input.item().isEmpty()) {
-            var recipe = level.getRecipeManager().getRecipeFor(CrushingRecipe.TYPE.get(), input, level);
-            if (recipe.isPresent())
-                return java.util.List.of(recipe.get().value().assemble(input, level.registryAccess()));
-        }
         return Block.getDrops(state, level, target, null, null, tool());
     }
 
@@ -153,18 +149,13 @@ final class DrillOperation {
     }
 
     /**
-     * Ticks to break a block, using vanilla's player formula for the drill's tool: tool speed
-     * over hardness, divided by 30 when the tool can harvest the block or 100 when it cannot.
+     * Ticks to break a block, as in SA2: a configurable number of ticks per point of hardness
+     * (12 by default), never less than half that.
      */
     static int breakTicks(BlockState state, net.minecraft.world.level.Level level, BlockPos pos) {
+        double factor = zone.moddev.mc.SteamAdvantage.config.SteamConfig.DRILL_TICKS_PER_HARDNESS.get();
         float hardness = state.getDestroySpeed(level, pos);
-        if (hardness <= 0)
-            return 1;
-        ItemStack tool = tool();
-        boolean harvestable =
-                !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
-        float perTick = tool.getDestroySpeed(state) / hardness / (harvestable ? 30f : 100f);
-        return Math.max(1, net.minecraft.util.Mth.ceil(1f / perTick));
+        return Math.max(1, (int) Math.ceil(Math.max(factor * hardness, factor * .5)));
     }
 
     static void clearDrill(SteamMachine machine) {
