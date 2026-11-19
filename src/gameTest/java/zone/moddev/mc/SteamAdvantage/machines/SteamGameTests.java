@@ -23,6 +23,26 @@ public final class SteamGameTests {
         h.assertTrue(be instanceof SteamMachine, "Machine entity: " + name);
         return (SteamMachine) be;
     }
+    /** Machines already ported to MMDLib XML definitions. */
+    private static final java.util.Set<String> XML_MACHINES =
+            java.util.Set.of("steam_tank", "steam_switch");
+    private static zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity placeXml(
+            GameTestHelper h, String name, int x, int y, int z) {
+        var p = new BlockPos(x, y, z);
+        h.setBlock(p, ModContent.block(name));
+        var be = h.getLevel().getBlockEntity(h.absolutePos(p));
+        h.assertTrue(be instanceof zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity,
+                "XML machine entity: " + name);
+        return (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity) be;
+    }
+    /** Comparator source for XML machines: tank 0 (steam) at 0, half or full. */
+    private static void setXmlComparatorSource(
+            zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity m, int fraction) {
+        var tank = m.fluids.tank(0);
+        tank.drain(Integer.MAX_VALUE, FluidAction.EXECUTE);
+        if (fraction > 0)
+            tank.fill(steam(tank.getCapacity() * fraction / 2), FluidAction.EXECUTE);
+    }
     @GameTest(template = "empty")
     public static void drillBitLineCleanup(GameTestHelper h) {
         var facing = net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING;
@@ -268,6 +288,8 @@ public final class SteamGameTests {
         var pos = new BlockPos(2, 2, 2);
         for (String kind : ModContent.MACHINES) {
             h.setBlock(pos, Blocks.AIR);
+            if (XML_MACHINES.contains(kind))
+                continue; // Sampled once per tick; see xmlComparatorScaling.
             var m = place(h, kind, 2, 2, 2);
             for (int fraction = 0; fraction <= 2; fraction++) {
                 setComparatorSource(m, fraction);
@@ -292,6 +314,32 @@ public final class SteamGameTests {
         h.succeed();
     }
 
+    /** MMDLib samples an XML machine's comparator source once per tick, so step a tick apart. */
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void xmlComparatorScaling(GameTestHelper h) {
+        verifyXmlScaling(h, XML_MACHINES.stream().sorted().toList(), 0, 0);
+    }
+    private static void verifyXmlScaling(
+            GameTestHelper h, java.util.List<String> kinds, int index, int fraction) {
+        if (index == kinds.size()) { h.succeed(); return; }
+        String kind = kinds.get(index);
+        if (fraction == 0) h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
+        var x = fraction == 0 ? placeXml(h, kind, 2, 2, 2)
+                : (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
+                          h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(2, 2, 2)));
+        // Hold processing so a tank does not empty itself into the test structure.
+        h.setBlock(new BlockPos(2, 3, 2), Blocks.REDSTONE_BLOCK);
+        setXmlComparatorSource(x, fraction);
+        h.runAfterDelay(2, () -> {
+            int expected = fraction == 0 ? 0 : fraction == 1 ? 7 : 15;
+            h.assertTrue(x.getBlockState().getAnalogOutputSignal(h.getLevel(), x.getBlockPos())
+                                 == expected,
+                    kind + " comparator fraction " + fraction + " expected " + expected);
+            if (fraction < 2) verifyXmlScaling(h, kinds, index, fraction + 1);
+            else verifyXmlScaling(h, kinds, index + 1, 0);
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void realComparatorsRefreshWhenMachineSourcesChange(GameTestHelper h) {
         verifyComparatorUpdate(h, 0);
@@ -303,7 +351,28 @@ public final class SteamGameTests {
         var comparatorPos = new BlockPos(3, 2, 2);
         h.setBlock(comparatorPos, Blocks.AIR);
         h.setBlock(machinePos, Blocks.AIR);
-        var m = place(h, ModContent.MACHINES.get(index), 2, 2, 2);
+        String kind = ModContent.MACHINES.get(index);
+        if (XML_MACHINES.contains(kind)) {
+            var x = placeXml(h, kind, 2, 2, 2);
+            h.setBlock(machinePos.above(), Blocks.REDSTONE_BLOCK);
+            h.setBlock(comparatorPos.below(), Blocks.STONE);
+            h.setBlock(comparatorPos, Blocks.COMPARATOR.defaultBlockState().setValue(
+                    net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING,
+                    Direction.WEST));
+            setXmlComparatorSource(x, 2);
+            h.runAfterDelay(4, () -> {
+                var comparator = (net.minecraft.world.level.block.entity.ComparatorBlockEntity)
+                        h.getLevel().getBlockEntity(h.absolutePos(comparatorPos));
+                h.assertTrue(comparator.getOutputSignal() == 15, kind + " comparator rises to 15");
+                setXmlComparatorSource(x, 0);
+                h.runAfterDelay(4, () -> {
+                    h.assertTrue(comparator.getOutputSignal() == 0, kind + " comparator falls to zero");
+                    verifyComparatorUpdate(h, index + 1);
+                });
+            });
+            return;
+        }
+        var m = place(h, kind, 2, 2, 2);
         h.setBlock(machinePos.above(), Blocks.REDSTONE_BLOCK); // Pause processing without powering the comparator.
         h.setBlock(comparatorPos.below(), Blocks.STONE);
         h.setBlock(comparatorPos, Blocks.COMPARATOR.defaultBlockState().setValue(
@@ -569,36 +638,39 @@ public final class SteamGameTests {
     @GameTest(template = "empty")
     public static void registrationCapabilitiesPersistence(GameTestHelper h) {
         for (String name : ModContent.MACHINES) {
-            var m = place(h, name, 2, 2, 2);
+            var m = XML_MACHINES.contains(name) ? placeXml(h, name, 2, 2, 2)
+                                                : place(h, name, 2, 2, 2);
             for (var side : Direction.values())
                 h.assertTrue(h.getLevel().getCapability(
                                      Capabilities.FluidHandler.BLOCK, m.getBlockPos(), side)
                                 != null,
                         "Missing fluid capability " + name);
         }
-        var tank = place(h, "steam_tank", 2, 2, 2);
+        var tank = placeXml(h, "steam_tank", 2, 2, 2);
         h.assertTrue(tank.fluids.fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE) == 0,
                 "Steam-only filter");
         tank.fluids.fill(steam(123456), FluidAction.EXECUTE);
-        var saved = tank.saveWithoutMetadata(h.getLevel().registryAccess());
-        var restored = new SteamMachine(tank.getBlockPos(), tank.getBlockState());
-        restored.loadWithComponents(saved, h.getLevel().registryAccess());
+        var registries = h.getLevel().registryAccess();
+        var saved = tank.saveWithFullMetadata(registries);
+        var restored = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
+                net.minecraft.world.level.block.entity.BlockEntity.loadStatic(
+                        tank.getBlockPos(), tank.getBlockState(), saved, registries);
         h.assertTrue(restored.fluids.tank(0).getFluidAmount() == 123456, "Fluid persistence");
         h.succeed();
     }
     private static net.neoforged.neoforge.items.IItemHandler itemsAt(
-            GameTestHelper h, SteamMachine m, Direction side) {
+            GameTestHelper h, net.minecraft.world.level.block.entity.BlockEntity m, Direction side) {
         return h.getLevel().getCapability(Capabilities.ItemHandler.BLOCK, m.getBlockPos(), side);
     }
     private static net.neoforged.neoforge.fluids.capability.IFluidHandler fluidsAt(
-            GameTestHelper h, SteamMachine m, Direction side) {
+            GameTestHelper h, net.minecraft.world.level.block.entity.BlockEntity m, Direction side) {
         return h.getLevel().getCapability(Capabilities.FluidHandler.BLOCK, m.getBlockPos(), side);
     }
     @GameTest(template = "empty")
     public static void defaultAutomationSidesMatchRoles(GameTestHelper h) {
         var furnace = place(h, "steam_furnace", 1, 2, 1);
         var boiler = place(h, "steam_boiler_electric", 4, 2, 1);
-        var tank = place(h, "steam_tank", 1, 2, 4);
+        var tank = placeXml(h, "steam_tank", 1, 2, 4);
         furnace.items.setStackInSlot(4, new ItemStack(Items.IRON_INGOT, 6));
         for (var side : Direction.values()) {
             var items = itemsAt(h, furnace, side);
@@ -848,10 +920,39 @@ public final class SteamGameTests {
             });
         });
     }
+    /**
+     * A tank or switch saved by SA3 before the XML port (the shared SteamMachine entity, with a
+     * nine-slot "Items" inventory and an unnamed steam tank under "Fluids") loads into the XML
+     * machine with its steam intact.
+     */
+    @GameTest(template = "empty")
+    public static void preXmlTankAndSwitchSavesLoad(GameTestHelper h) {
+        var registries = h.getLevel().registryAccess();
+        var crusher = ModContent.block("steam_crusher").defaultBlockState();
+        for (String kind : java.util.List.of("steam_tank", "steam_switch")) {
+            var placed = placeXml(h, kind, 2, 2, 2);
+            var legacy = new SteamMachine(ModContent.machineType(crusher), placed.getBlockPos(),
+                    crusher, new MachineSettings(kind, kind.equals("steam_tank") ? 1000000 : 20000,
+                                     0, 0, 0, 9, 0, 0));
+            legacy.fluids().tank(0).fill(steam(4321), FluidAction.EXECUTE);
+            var saved = legacy.saveWithFullMetadata(registries);
+            saved.putString("id", ModContent.id(kind).toString());
+            var imported = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
+                    net.minecraft.world.level.block.entity.BlockEntity.loadStatic(
+                            placed.getBlockPos(), placed.getBlockState(), saved, registries);
+            h.assertTrue(imported != null && imported.fluids.tank(0).getFluidAmount() == 4321
+                                 && imported.fluids.tank(0).getFluid().getFluid()
+                                         == zone.moddev.mc.poweradvantage.init.Fluids.STEAM.get(),
+                    kind + " keeps its pre-XML steam");
+            h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
+        }
+        h.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void valveStopsOutputWhenPowered(GameTestHelper h) {
-        var valve = place(h, "steam_switch", 3, 2, 3);
-        var tank = place(h, "steam_tank", 3, 2, 2);
+        var valve = placeXml(h, "steam_switch", 3, 2, 3);
+        var tank = placeXml(h, "steam_tank", 3, 2, 2);
         valve.fluids.fill(steam(10000), FluidAction.EXECUTE);
         h.setBlock(new BlockPos(4, 2, 3), Blocks.REDSTONE_BLOCK);
         h.runAfterDelay(5, () -> {
@@ -1150,7 +1251,7 @@ public final class SteamGameTests {
     }
     @GameTest(template = "empty")
     public static void mismatchedScreenAndInvalidSettingsAreRejected(GameTestHelper h) {
-        var tank = place(h, "steam_tank", 2, 2, 2);
+        var tank = placeXml(h, "steam_tank", 2, 2, 2);
         var player = h.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
         var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(
                 io.netty.buffer.Unpooled.buffer(), h.getLevel().registryAccess());

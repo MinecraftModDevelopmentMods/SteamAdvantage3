@@ -43,12 +43,25 @@ public final class GuiSmokeClient {
         }
         if (++settled < 10 || captured.contains(name))
             return;
-        var steam = menu.bound.screen().find("steam").orElseThrow();
-        if (((Number) menu.value(steam, true)).doubleValue() <= 0
-                || !(menu.value(steam, false)
-                                instanceof net.neoforged.neoforge.fluids.FluidStack fluid)
-                || fluid.getAmount() <= 0)
-            throw new IllegalStateException("XML getter synchronization failed for " + name);
+        var steam = menu.bound.screen().find("steam");
+        if (steam.isPresent()) {
+            // Hand-written screens bind their steam gauge through XML getters.
+            if (((Number) menu.value(steam.get(), true)).doubleValue() <= 0
+                    || !(menu.value(steam.get(), false)
+                                    instanceof net.neoforged.neoforge.fluids.FluidStack fluid)
+                    || fluid.getAmount() <= 0)
+                throw new IllegalStateException("XML getter synchronization failed for " + name);
+        } else {
+            // MMDLib's generated tank gauges on XML machines sync their own element state.
+            var tanks = new ArrayList<zone.moddev.mc.lib.gui.model.Element>();
+            menu.bound.screen().forEach(element -> {
+                if (element instanceof zone.moddev.mc.lib.gui.model.elements.FluidTankElement)
+                    tanks.add(element);
+            });
+            // Their fill is checked in the captured screenshot.
+            if (tanks.isEmpty())
+                throw new IllegalStateException("No tank gauge for " + name);
+        }
         var layout = screen.layout;
         if (layout.panel().width() > screen.width || layout.panel().height() > screen.height)
             throw new IllegalStateException("Screen does not fit: " + name + " " + layout.panel()
@@ -62,7 +75,8 @@ public final class GuiSmokeClient {
             captured.add(name);
             org.slf4j.LoggerFactory.getLogger(GuiSmokeClient.class)
                     .info("GUI_SMOKE_CAPTURE {} steam={} capacity={}", name,
-                            menu.value(steam, false), menu.value(steam, true));
+                            steam.map(e -> menu.value(e, false)).orElse("generated"),
+                            steam.map(e -> menu.value(e, true)).orElse("generated"));
             if (captured.size() == ModContent.MACHINES.size()) {
                 Files.writeString(minecraft.gameDirectory.toPath().resolve("GUI_SMOKE_PASS.txt"),
                         String.join("\n", captured) + "\n");

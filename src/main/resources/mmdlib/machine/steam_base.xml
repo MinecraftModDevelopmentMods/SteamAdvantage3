@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shared SteamAdvantage machine settings. Abstract: registers nothing itself. -->
+<machine xmlns="https://moddev.zone/mmdlib/machine" version="1" abstract="true"
+         extends="mmdlib:base_machine">
+  <block hardness="3.5" mineable="minecraft:mineable/pickaxe" requires-tool="true"/>
+</machine>
