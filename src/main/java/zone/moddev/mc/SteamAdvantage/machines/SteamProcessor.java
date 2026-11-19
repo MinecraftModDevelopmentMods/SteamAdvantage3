@@ -60,6 +60,33 @@ public abstract class SteamProcessor extends StoredProcessor implements IRedston
         return Direction.NORTH;
     }
 
+    /** Pushes up to {@code amount} mB from a tank out of every face. */
+    protected final void pushAllSides(int tank, int amount) {
+        for (Direction side : Direction.values())
+            zone.moddev.mc.lib.api.capabilities.Transfer.pushFluids(
+                    machine.level(), machine.position(), side, tank(tank), amount);
+    }
+
+    /** A running heat source melts snow resting on top of the machine, as in SA2. */
+    protected final void meltSnow() {
+        var above = machine.position().above();
+        if (machine.level().getBlockState(above).is(net.minecraft.world.level.block.Blocks.SNOW))
+            machine.level().removeBlock(above, false);
+    }
+
+    /** An integer variable that is saved, synchronized and usable in appearance conditions. */
+    protected final zone.moddev.mc.lib.machine.feature.ProcessorState.Key<Integer> intVariable(
+            String name) {
+        return variables.define(name, com.mojang.serialization.Codec.INT, 0);
+    }
+
+    /**
+     * Copies this machine's pre-XML top-level save keys (Burn, Temperature and so on) into
+     * the processor's saved state. Called once, on a save written before the XML port; see
+     * {@link SteamMachineEntity}.
+     */
+    void importLegacy(net.minecraft.nbt.CompoundTag old, net.minecraft.nbt.CompoundTag state) {}
+
     /** Current comparator reading, 0..15. Called only on a live host. */
     protected abstract int comparatorSignal();
 
@@ -80,5 +107,21 @@ public abstract class SteamProcessor extends StoredProcessor implements IRedston
     protected final int tankSignal(int index) {
         var tank = tank(index);
         return proportionalSignal(tank.getFluidAmount(), tank.getCapacity());
+    }
+
+    /**
+     * Fullness of item slots {@code first..end-1}, normalizing each stack to its own limit.
+     * A nonempty measured inventory reads at least 1.
+     */
+    protected final int inventorySignal(int first, int end) {
+        var items = entity().items;
+        double fullness = 0;
+        for (int slot = first; slot < end; slot++) {
+            var stack = items.getStackInSlot(slot);
+            if (!stack.isEmpty())
+                fullness += (double) stack.getCount()
+                        / Math.min(stack.getMaxStackSize(), items.getSlotLimit(slot));
+        }
+        return fullness <= 0 ? 0 : Math.max(1, proportionalSignal(fullness, end - first));
     }
 }

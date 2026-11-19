@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<machine xmlns="https://moddev.zone/mmdlib/machine" version="1"
+         extends="steamadvantage:steam_base" name="Geothermal Steam Boiler">
+  <appearance preset="model" model="steamadvantage:block/steam_boiler_geothermal_model"/>
+  <storage>
+    <fluids id="Fluids">
+      <tank id="steam" name="Steam" role="output" capacity="10000" fluid="poweradvantage:steam" color="#C8C8C8"/>
+      <tank id="water" name="Water" role="input" capacity="4000" fluid="minecraft:water" color="#3F76E4"/>
+    </fluids>
+  </storage>
+  <redstone comparator-source="steamadvantage/comparator"/>
+  <processor id="boiler" class="zone.moddev.mc.SteamAdvantage.machines.GeothermalBoilerProcessor"/>
+  <screen xmlns="https://moddev.zone/mmdlib/screen">
+    <fill name="machine">
+      <group label="screen.steamadvantage.heat" padding="4">
+        <gauge id="heat" orientation="vertical" length="64" color="#E87824"
+               value="zone.moddev.mc.SteamAdvantage.machines.SteamScreens#temperature" max="zone.moddev.mc.SteamAdvantage.machines.SteamScreens#maxTemperature"
+               tooltip="screen.steamadvantage.temperature_amount"/>
+      </group>
+    </fill>
+  </screen>
+</machine>

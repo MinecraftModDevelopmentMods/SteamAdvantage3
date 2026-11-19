@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<machine xmlns="https://moddev.zone/mmdlib/machine" version="1"
+         extends="steamadvantage:steam_base" name="Oil Steam Boiler">
+  <block no-occlusion="true"/>
+  <appearance preset="model" model="steamadvantage:block/steam_boiler_oil_model"/>
+  <storage>
+    <fluids id="Fluids">
+      <tank id="steam" name="Steam" role="output" capacity="100000" fluid="poweradvantage:steam" color="#C8C8C8"/>
+      <tank id="water" name="Water" role="input" capacity="4000" fluid="minecraft:water" color="#3F76E4"/>
+      <!-- Accepts the fluid tag named by the common config's oil boiler fuel setting. -->
+      <tank id="fuel" name="Fuel" role="input" capacity="4000" color="#4A3A2A" filter-processor="boiler"/>
+    </fluids>
+  </storage>
+  <redstone comparator-source="steamadvantage/comparator"/>
+  <processor id="boiler" class="zone.moddev.mc.SteamAdvantage.machines.OilBoilerProcessor"/>
+  <screen xmlns="https://moddev.zone/mmdlib/screen">
+    <fill name="machine">
+      <meter orientation="horizontal" length="18" thickness="5" color="#E88D24"
+             value="zone.moddev.mc.SteamAdvantage.machines.SteamScreens#burnTime" max="zone.moddev.mc.SteamAdvantage.machines.SteamScreens#totalBurnTime"
+             tooltip="screen.steamadvantage.burn_amount"/>
+    </fill>
+  </screen>
+</machine>

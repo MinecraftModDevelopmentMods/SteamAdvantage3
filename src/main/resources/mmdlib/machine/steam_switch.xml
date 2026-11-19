@@ -10,4 +10,9 @@
   </storage>
   <redstone comparator-source="steamadvantage/comparator"/>
   <processor id="valve" class="zone.moddev.mc.SteamAdvantage.machines.SteamValveProcessor"/>
+  <screen xmlns="https://moddev.zone/mmdlib/screen">
+    <fill name="machine">
+      <label text="screen.steamadvantage.valve_help"/>
+    </fill>
+  </screen>
 </machine>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<machine xmlns="https://moddev.zone/mmdlib/machine" version="1"
+         extends="steamadvantage:steam_base" name="Steam-Powered Still">
+  <block no-occlusion="true"/>
+  <appearance preset="model" model="steamadvantage:block/steam_still_model"/>
+  <storage>
+    <fluids id="Fluids">
+      <tank id="steam" name="Steam" role="input" capacity="10000" fluid="poweradvantage:steam" color="#C8C8C8"/>
+      <tank id="product" name="Product" role="output" capacity="4000" color="#70A050"/>
+      <!-- Accepts whatever Power Advantage's distilling recipes can use. -->
+      <tank id="input" name="Input" role="input" capacity="4000" color="#3F76E4" filter-processor="still"/>
+    </fluids>
+  </storage>
+  <redstone comparator-source="steamadvantage/comparator"/>
+  <processor id="still" class="zone.moddev.mc.SteamAdvantage.machines.StillProcessor"/>
+  <screen xmlns="https://moddev.zone/mmdlib/screen">
+    <fill name="machine">
+      <progress value="zone.moddev.mc.SteamAdvantage.machines.SteamScreens#distillProgress" max="zone.moddev.mc.SteamAdvantage.machines.SteamScreens#distillDuration"
+                tooltip="screen.steamadvantage.progress_amount"/>
+    </fill>
+  </screen>
+</machine>

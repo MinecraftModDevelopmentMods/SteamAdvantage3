@@ -43,6 +43,11 @@ public final class ModContent {
             List.of("steam_boiler_coal", "steam_boiler_electric", "steam_boiler_geothermal",
                     "steam_boiler_oil", "steam_tank", "steam_furnace", "steam_crusher",
                     "steam_drill", "steam_elevator", "steam_still", "steam_pump", "steam_switch");
+    /** Machines defined by MMDLib XML (mmdlib/machine/); the rest still use MachineBlock. */
+    public static final List<String> XML_MACHINES =
+            List.of("steam_boiler_coal", "steam_boiler_electric", "steam_boiler_geothermal",
+                    "steam_boiler_oil", "steam_tank", "steam_elevator", "steam_still",
+                    "steam_pump", "steam_switch");
     private ModContent() {}
     public static ResourceLocation id(String path) {
         return ResourceLocation.fromNamespaceAndPath(SteamAdvantage.MODID, path);
