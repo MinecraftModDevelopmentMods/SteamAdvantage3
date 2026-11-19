@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GameTest-only variant: extends the steam tank in XML alone. Excluded from release jars. -->
+<machine xmlns="https://moddev.zone/mmdlib/machine" version="1"
+         extends="steamadvantage:steam_tank" name="Test Large Steam Tank">
+  <storage>
+    <fluids id="Fluids">
+      <tank id="steam" capacity="2345678"/>
+    </fluids>
+  </storage>
+</machine>

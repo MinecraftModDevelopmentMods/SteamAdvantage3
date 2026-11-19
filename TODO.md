@@ -30,6 +30,9 @@ implementation and its relevant gameplay checks are complete.
   - Looks up the mined block's item in MMDLib's live crushing recipes, matching
     the steam crusher's recipe type. Uses the recipe's complete output when
     present; otherwise uses normal unenchanted diamond-pickaxe drops.
+  - Removed in 3.2.0: with Mineralogy's runtime c:cobblestones tag every rock
+    crushed to gravel, so the drill now always returns normal block drops,
+    like Electric Advantage's laser drill.
   - Checks all output slots together before mining spends steam or advances
     progress. Insufficient space preserves the block and pauses mining until
     the entire result fits; recipe output replaces rather than adds to loot.

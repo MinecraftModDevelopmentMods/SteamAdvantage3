@@ -55,5 +55,7 @@
   "screen.steamadvantage.progress_amount": "Processing: {value} / {max}",
   "screen.steamadvantage.depth_amount": "Extension: {value} / {max} blocks",
   "screen.steamadvantage.elevator_help": "Redstone raises; no signal retracts.",
-  "screen.steamadvantage.valve_help": "Redstone closes the facing outlet."
+  "screen.steamadvantage.valve_help": "Redstone closes the facing outlet.",
+  "redstone.steamadvantage.comparator": "Machine reading",
+  "redstone.steamadvantage.comparator.desc": "What a comparator reads from this machine"
 }

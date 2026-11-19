@@ -11,7 +11,7 @@ public final class SteamConfig {
     public static final ModConfigSpec.EnumValue<RecipeMode> RECIPE_MODE;
     public static final ModConfigSpec SPEC;
     public static final ModConfigSpec.IntValue OIL_BURN_TICKS, RELOAD;
-    public static final ModConfigSpec.DoubleValue DAMAGE;
+    public static final ModConfigSpec.DoubleValue DAMAGE, DRILL_TICKS_PER_HARDNESS;
     public static final ModConfigSpec.BooleanValue MUSKETS;
     static {
         var builder = new ModConfigSpec.Builder();
@@ -20,6 +20,10 @@ public final class SteamConfig {
         RELOAD = builder.defineInRange("musketReloadTicks", 100, 20, 300);
         DAMAGE = builder.defineInRange("musketDamage", 20.0, 0, 100);
         MUSKETS = builder.define("musketsEnabled", true);
+        DRILL_TICKS_PER_HARDNESS = builder
+                .comment("Steam drill mining time: ticks per point of block hardness (stone 1.5,",
+                        "obsidian 50), with a minimum of half this value. 12 matches Steam Advantage 2.")
+                .defineInRange("drillTicksPerHardness", 12.0, 0.1, 1000.0);
         SPEC = builder.build();
     }
     public static TagKey<Fluid> fuelTag() {

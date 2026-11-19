@@ -1,0 +1,141 @@
+{
+    data: [],
+    palette: [],
+    Burn: 100,
+    Depth: 0,
+    DistillationDuration: 0,
+    DrillPhase: 0,
+    DrillRetractionTicks: 0,
+    ElevatorHeight: 0,
+    Fluids: {
+        Recovery: [],
+        Tanks: [
+            {
+                Fluid: {
+                    amount: 6000,
+                    id: "poweradvantage:steam"
+                }
+            }
+        ]
+    },
+    Items: {
+        Items: [
+            {
+                Slot: 0,
+                count: 2,
+                id: "minecraft:coal"
+            },
+            {
+                Slot: 1,
+                count: 1,
+                id: "minecraft:raw_iron"
+            },
+            {
+                Slot: 2,
+                count: 2,
+                id: "minecraft:raw_gold"
+            },
+            {
+                Slot: 4,
+                count: 3,
+                id: "minecraft:iron_ingot"
+            }
+        ],
+        Recovery: [],
+        Size: 9
+    },
+    Progress: [I; 0, 500, 0],
+    Raised: 0b,
+    Temperature: 900.0f,
+    TotalBurn: 1600,
+    automation: {
+        groups: {
+            fuel: {
+                contents: [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                ],
+                sides: {
+                    back: "input",
+                    bottom: "input",
+                    front: "input",
+                    left: "input",
+                    right: "input",
+                    top: "input"
+                }
+            },
+            input: {
+                contents: [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                ],
+                sides: {
+                    back: "input",
+                    bottom: "input",
+                    front: "input",
+                    left: "input",
+                    right: "input",
+                    top: "input"
+                }
+            },
+            output: {
+                contents: [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                ],
+                sides: {
+                    back: "output",
+                    bottom: "output",
+                    front: "output",
+                    left: "output",
+                    right: "output",
+                    top: "output"
+                }
+            },
+            steam: {
+                contents: [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                ],
+                sides: {
+                    back: "input",
+                    bottom: "input",
+                    front: "input",
+                    left: "input",
+                    right: "input",
+                    top: "input"
+                }
+            }
+        },
+        recovery: [],
+        refund: 0L,
+        transfers: {},
+        version: 1
+    },
+    features: {},
+    id: "steamadvantage:steam_furnace"
+}

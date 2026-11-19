@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<machine xmlns="https://moddev.zone/mmdlib/machine" version="1"
+         extends="steamadvantage:steam_base" name="Steam Crusher">
+  <appearance preset="model" model="steamadvantage:block/steam_crusher_model"/>
+  <storage>
+    <items id="Items">
+      <slots id="input" name="Input" count="1" role="input" color="#5080D0"/>
+      <slots id="output" name="Output" count="5" role="output" color="#D08050"/>
+    </items>
+    <fluids id="Fluids">
+      <tank id="steam" name="Steam" role="input" capacity="20000"
+            fluid="poweradvantage:steam" color="#C8C8C8"/>
+    </fluids>
+  </storage>
+  <redstone comparator-source="steamadvantage/comparator"/>
+  <!-- Every MMDLib crushing recipe, at 125 ticks and 18,750 mB of steam per item. -->
+  <recipe-type id="steamadvantage:steam_crushing" declare="true" name="Steam Crushing">
+    <generator class="zone.moddev.mc.SteamAdvantage.recipes.SteamCrushingRecipes"/>
+  </recipe-type>
+  <processor id="crusher" recipe-type="steamadvantage:steam_crushing" primary="true"/>
+  <processor id="sensor" class="zone.moddev.mc.SteamAdvantage.machines.RecipeMachineSensor"/>
+</machine>

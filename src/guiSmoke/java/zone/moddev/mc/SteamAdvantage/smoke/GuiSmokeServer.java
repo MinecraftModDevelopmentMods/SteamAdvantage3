@@ -12,7 +12,6 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import zone.moddev.mc.SteamAdvantage.SteamAdvantage;
 import zone.moddev.mc.SteamAdvantage.init.ModContent;
-import zone.moddev.mc.SteamAdvantage.machines.SteamMachine;
 
 /** Opt-in disposable-world fixture. Never included in released mods. */
 @EventBusSubscriber(modid = SteamAdvantage.MODID)
@@ -33,28 +32,15 @@ public final class GuiSmokeServer {
             var pos = pending;
             pending = null;
             var name = ModContent.MACHINES.get(index - 1);
-            var machine = (SteamMachine) level.getBlockEntity(pos);
-            machine.fluids().tank(0).fill(
+            var xml = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
+                    level.getBlockEntity(pos);
+            xml.fluids.tank(0).fill(
                     new FluidStack(zone.moddev.mc.poweradvantage.init.Fluids.STEAM.get(),
-                            machine.getSteamCapacity() * 3 / 4),
+                            xml.fluids.tank(0).getCapacity() * 3 / 4),
                     FluidAction.EXECUTE);
-            for (int tank = 1; tank < machine.fluids().getTanks(); tank++) {
-                machine.fluids().tank(tank).fill(
-                        new FluidStack(net.minecraft.world.level.material.Fluids.WATER, 2000),
-                        FluidAction.EXECUTE);
-            }
-            machine.energy().setStored(1200);
-            machine.items().setStackInSlot(0, new ItemStack(Items.COAL, 8));
-            if (name.equals("steam_furnace"))
-                for (int i = 1; i <= 3; i++)
-                    machine.items().setStackInSlot(i, new ItemStack(Items.RAW_IRON, 8));
-            if (name.equals("steam_crusher"))
-                machine.items().setStackInSlot(0, new ItemStack(Items.COBBLESTONE, 8));
-            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ItemStack.EMPTY);
-            player.gameMode.useItemOn(player, level, ItemStack.EMPTY,
-                    net.minecraft.world.InteractionHand.MAIN_HAND,
-                    new BlockHitResult(
-                            Vec3.atCenterOf(pos), net.minecraft.core.Direction.UP, pos, false));
+            // Hold processing so the machine does not empty itself before the capture.
+            level.setBlockAndUpdate(pos.above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
+            openMenu(player, level, pos);
             return;
         }
         if (++ticks % 60 != 0)
@@ -65,5 +51,13 @@ public final class GuiSmokeServer {
         String name = ModContent.MACHINES.get(index++);
         level.setBlockAndUpdate(pos, ModContent.block(name).defaultBlockState());
         pending = pos;
+    }
+    private static void openMenu(net.minecraft.server.level.ServerPlayer player,
+            net.minecraft.server.level.ServerLevel level, BlockPos pos) {
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        player.gameMode.useItemOn(player, level, ItemStack.EMPTY,
+                net.minecraft.world.InteractionHand.MAIN_HAND,
+                new BlockHitResult(
+                        Vec3.atCenterOf(pos), net.minecraft.core.Direction.UP, pos, false));
     }
 }

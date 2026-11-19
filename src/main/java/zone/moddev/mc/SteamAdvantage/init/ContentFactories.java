@@ -4,18 +4,13 @@ import com.mojang.serialization.Codec;
 import com.mojang.datafixers.util.Unit;
 import java.util.function.Function;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import zone.moddev.mc.SteamAdvantage.blocks.DrillBitBlock;
 import zone.moddev.mc.SteamAdvantage.blocks.DrillBitBlockEntity;
 import zone.moddev.mc.SteamAdvantage.blocks.PlatformBlock;
 import zone.moddev.mc.SteamAdvantage.blocks.PumpShaftBlock;
 import zone.moddev.mc.SteamAdvantage.items.MusketItem;
-import zone.moddev.mc.SteamAdvantage.machines.MachineBlock;
-import zone.moddev.mc.SteamAdvantage.machines.MachineSettings;
-import zone.moddev.mc.SteamAdvantage.machines.SteamMachine;
 import zone.moddev.mc.lib.api.BlockContext;
 import zone.moddev.mc.lib.api.BlockImplementation;
 import zone.moddev.mc.lib.api.ItemContext;
@@ -31,19 +26,6 @@ import zone.moddev.mc.lib.common.types.MMDMaterial;
 final class ContentFactories {
     private ContentFactories() {}
     static void register(MaterialExtensions api) {
-        api.registerBlockImplementation(
-                ModContent.id("machine"), new BlockImplementation<MachineBlock>() {
-                    public Class<MachineBlock> blockClass() {
-                        return MachineBlock.class;
-                    }
-                    public MachineBlock create(MMDMaterial material, MMDBlock definition) {
-                        throw new IllegalStateException("Machine requires BlockContext");
-                    }
-                    public MachineBlock create(BlockContext context) {
-                        return new MachineBlock(context.properties(),
-                                context.blockEntity().orElseThrow().as(SteamMachine.class));
-                    }
-                });
         block(api, "platform", PlatformBlock.class, PlatformBlock::new);
         api.registerBlockImplementation(ModContent.id("drillbit"), new BlockImplementation<DrillBitBlock>() {
             public Class<DrillBitBlock> blockClass() { return DrillBitBlock.class; }
@@ -78,24 +60,6 @@ final class ContentFactories {
                     }
                     public MusketItem create(ItemContext context) {
                         return new MusketItem(context.properties());
-                    }
-                });
-        zone.moddev.mc.lib.util.Registries.BLOCK_ENTITY_FACTORIES.register(
-                ModContent.id("machine"), new BlockEntityFactory<SteamMachine, MachineSettings>() {
-                    public Class<SteamMachine> blockEntityClass() {
-                        return SteamMachine.class;
-                    }
-                    public Codec<MachineSettings> settingsCodec() {
-                        return MachineSettings.CODEC;
-                    }
-                    public SteamMachine create(BlockEntityType<SteamMachine> type, BlockPos pos,
-                            net.minecraft.world.level.block.state.BlockState state,
-                            MMDBlockEntity definition, MachineSettings settings) {
-                        return new SteamMachine(type, pos, state, settings);
-                    }
-                    public BlockEntityTicker<SteamMachine> ticker(
-                            Level level, MMDBlockEntity definition, MachineSettings settings) {
-                        return level.isClientSide ? null : SteamMachine::tick;
                     }
                 });
     }

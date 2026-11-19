@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<machine xmlns="https://moddev.zone/mmdlib/machine" version="1"
+         extends="steamadvantage:steam_base" name="Steam Drill">
+  <!-- Placed facing the player in any of the six directions; it drills from its front. -->
+  <block facing="all" no-occlusion="true"/>
+  <appearance preset="model" model="steamadvantage:block/steam_drill_model"/>
+  <storage>
+    <items id="Items">
+      <slots id="output" name="Output" count="5" role="output" color="#D08050"/>
+    </items>
+    <fluids id="Fluids">
+      <tank id="steam" name="Steam" role="input" capacity="5000"
+            fluid="poweradvantage:steam" color="#C8C8C8"/>
+    </fluids>
+  </storage>
+  <redstone comparator-source="steamadvantage/comparator"/>
+  <processor id="drill" class="zone.moddev.mc.SteamAdvantage.machines.DrillProcessor"/>
+  <screen xmlns="https://moddev.zone/mmdlib/screen">
+    <fill name="machine">
+      <vbox spacing="3">
+        <hbox>
+          <slot index="0"/>
+          <slot index="1"/>
+          <slot index="2"/>
+          <slot index="3"/>
+          <slot index="4"/>
+        </hbox>
+        <meter orientation="horizontal" length="90" thickness="5" color="#70A050"
+               value="zone.moddev.mc.SteamAdvantage.machines.SteamScreens#drillDepth"
+               max="zone.moddev.mc.SteamAdvantage.machines.SteamScreens#drillRange"
+               tooltip="screen.steamadvantage.depth_amount"/>
+      </vbox>
+    </fill>
+  </screen>
+</machine>

@@ -16,12 +16,55 @@ import zone.moddev.mc.SteamAdvantage.items.MusketItem;
 @GameTestHolder(SteamAdvantage.MODID)
 @PrefixGameTestTemplate(false)
 public final class SteamGameTests {
-    private static SteamMachine place(GameTestHelper h, String name, int x, int y, int z) {
+    /** The machine's processor of the given type. */
+    private static <T> T processor(zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity m, Class<T> type) {
+        return m.features.allProcessors().stream().filter(type::isInstance).map(type::cast)
+                .findFirst().orElseThrow();
+    }
+    private static zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity place(
+            GameTestHelper h, String name, int x, int y, int z) {
         var p = new BlockPos(x, y, z);
         h.setBlock(p, ModContent.block(name));
         var be = h.getLevel().getBlockEntity(h.absolutePos(p));
-        h.assertTrue(be instanceof SteamMachine, "Machine entity: " + name);
-        return (SteamMachine) be;
+        h.assertTrue(be instanceof zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity,
+                "XML machine entity: " + name);
+        return (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity) be;
+    }
+    /** Sets an XML machine's comparator source to empty, half or full. */
+    private static void setXmlComparatorSource(zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity m, int fraction) {
+        switch (m.definition.id().getPath()) {
+            case "steam_elevator" -> processor(m, ElevatorProcessor.class).setRaised(fraction > 0);
+            case "steam_boiler_geothermal" ->
+                processor(m, GeothermalBoilerProcessor.class).setTemperature(1000 * fraction);
+            case "steam_boiler_electric" -> m.energy.setStored(m.energy.capacity() * fraction / 2);
+            case "steam_boiler_coal" -> m.items.setStackInSlot(0, fraction == 0 ? ItemStack.EMPTY
+                    : new ItemStack(Items.COAL, fraction * 32));
+            case "steam_crusher" -> m.items.setStackInSlot(0, fraction == 0 ? ItemStack.EMPTY
+                    : new ItemStack(Items.COBBLESTONE, fraction * 32));
+            case "steam_furnace" -> {
+                for (int slot = 0; slot < 3; slot++)
+                    m.items.setStackInSlot(slot, fraction == 0 ? ItemStack.EMPTY
+                            : new ItemStack(Items.RAW_IRON, fraction * 32));
+            }
+            case "steam_drill" -> {
+                for (int slot = 0; slot < 5; slot++)
+                    m.items.setStackInSlot(slot, fraction == 0 ? ItemStack.EMPTY
+                            : new ItemStack(Items.COAL, fraction * 32));
+            }
+            default -> {
+                String kind = m.definition.id().getPath();
+                int index = kind.equals("steam_boiler_oil") || kind.equals("steam_still") ? 2
+                        : kind.equals("steam_pump") ? 1 : 0;
+                var fluid = kind.equals("steam_boiler_oil") ? Fluids.LAVA
+                        : index > 0 ? Fluids.WATER
+                        : zone.moddev.mc.poweradvantage.init.Fluids.STEAM.get();
+                var tank = m.fluids.tank(index);
+                tank.drain(Integer.MAX_VALUE, FluidAction.EXECUTE);
+                if (fraction > 0)
+                    tank.fill(new FluidStack(fluid, tank.getCapacity() * fraction / 2),
+                            FluidAction.EXECUTE);
+            }
+        }
     }
     @GameTest(template = "empty")
     public static void drillBitLineCleanup(GameTestHelper h) {
@@ -32,14 +75,14 @@ public final class SteamGameTests {
             BlockPos origin = new BlockPos(2, 2, 2);
             h.setBlock(origin, ModContent.block("steam_drill").defaultBlockState()
                     .setValue(facing, direction));
-            var drill = (SteamMachine) h.getLevel().getBlockEntity(h.absolutePos(origin));
+            var drill = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity) h.getLevel().getBlockEntity(h.absolutePos(origin));
+            var dp = processor(drill, DrillProcessor.class);
             var bit = ModContent.block("drillbit").defaultBlockState().setValue(facing, direction);
             BlockPos isolated = new BlockPos(6, 2, 6);
             for (int scenario = 0; scenario < 3; scenario++) {
                 for (int n = 1; n <= 3; n++) h.setBlock(origin.relative(direction, n), bit);
                 h.setBlock(isolated, bit);
-                drill.depth = 3;
-                drill.progress[0] = 12;
+                dp.set(3, DrillProcessor.DRILLING, 12);
                 if (scenario == 0)
                     h.getLevel().destroyBlock(h.absolutePos(origin.relative(direction, 2)), true);
                 else if (scenario == 1)
@@ -51,7 +94,7 @@ public final class SteamGameTests {
                             "Connected bit removed: " + direction + " scenario " + scenario);
                 h.assertTrue(h.getBlockState(isolated).is(ModContent.block("drillbit")),
                         "Disconnected bit preserved");
-                h.assertTrue(drill.depth == 0 && drill.progress[0] == 0, "Drill progress reset");
+                h.assertTrue(dp.depth() == 0 && dp.progress() == 0, "Drill progress reset");
                 if (scenario == 1)
                     h.setBlock(origin, drill.getBlockState().setValue(facing, direction));
             }
@@ -63,42 +106,45 @@ public final class SteamGameTests {
     @GameTest(template = "empty")
     public static void drillRetractsGraduallyAndWaitsForReset(GameTestHelper h) {
         var drill = place(h, "steam_drill", 2, 2, 2);
+        var dp = processor(drill, DrillProcessor.class);
         var facing = net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING;
         h.setBlock(new BlockPos(2, 2, 2), drill.getBlockState().setValue(facing, Direction.UP));
         var bit = ModContent.block("drillbit").defaultBlockState().setValue(facing, Direction.UP);
         for (int n = 1; n <= 3; n++) h.setBlock(new BlockPos(2, 2 + n, 2), bit);
         h.setBlock(new BlockPos(2, 6, 2), Blocks.BEDROCK);
-        drill.depth = 3;
-        DrillOperation.drill(drill);
-        h.assertTrue(drill.drillPhase == 1, "Bedrock starts retraction without steam");
-        for (int n = 0; n < 4; n++) DrillOperation.drill(drill);
-        h.assertTrue(drill.depth == 2 && h.getBlockState(new BlockPos(2, 5, 2)).isAir(),
+        dp.set(3, DrillProcessor.DRILLING, 0);
+        dp.step();
+        h.assertTrue(dp.phase() == DrillProcessor.RETRACTING, "Bedrock starts retraction without steam");
+        for (int n = 0; n < 4; n++) dp.step();
+        h.assertTrue(dp.depth() == 2 && h.getBlockState(new BlockPos(2, 5, 2)).isAir(),
                 "Only the outermost segment retracts first");
         h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).is(ModContent.block("drillbit")),
                 "Inner line survives controlled retraction");
         var saved = drill.saveWithoutMetadata(h.getLevel().registryAccess());
         drill.loadWithComponents(saved, h.getLevel().registryAccess());
-        h.assertTrue(drill.drillPhase == 1 && drill.depth == 2, "Retraction survives save/load");
-        for (int n = 0; n < 20; n++) DrillOperation.drill(drill);
-        h.assertTrue(drill.depth == 0 && drill.drillPhase == 2, "Drill stays retracted");
+        h.assertTrue(dp.phase() == DrillProcessor.RETRACTING && dp.depth() == 2,
+                "Retraction survives save/load");
+        for (int n = 0; n < 20; n++) dp.step();
+        h.assertTrue(dp.depth() == 0 && dp.phase() == DrillProcessor.RETRACTED, "Drill stays retracted");
         drill.fluids.fill(steam(10000), FluidAction.EXECUTE);
-        for (int n = 0; n < 10; n++) DrillOperation.drill(drill);
-        h.assertTrue(drill.depth == 0, "Steam does not restart completed drill");
+        for (int n = 0; n < 10; n++) dp.step();
+        h.assertTrue(dp.depth() == 0, "Steam does not restart completed drill");
         h.setBlock(new BlockPos(3, 2, 2), Blocks.REDSTONE_BLOCK);
-        SteamMachine.tick(h.getLevel(), drill.getBlockPos(), drill.getBlockState(), drill);
-        h.assertTrue(drill.drillPhase == 0, "Redstone resets completion");
-        h.setBlock(new BlockPos(3, 2, 2), Blocks.AIR);
-        DrillOperation.drill(drill);
-        h.assertTrue(drill.depth == 1, "Drilling resumes after reset");
-        drill.clearDrill();
-        drill.depth = DrillOperation.MAX_RANGE;
-        DrillOperation.drill(drill);
-        h.assertTrue(drill.drillPhase == 1, "Maximum range also starts retraction");
-        drill.clearDrill();
-        drill.drillPhase = 2;
-        h.setBlock(new BlockPos(2, 2, 2), drill.getBlockState().setValue(facing, Direction.DOWN));
-        h.assertTrue(drill.drillPhase == 0, "Rotation resets completion");
-        h.succeed();
+        h.runAfterDelay(2, () -> {
+            h.assertTrue(dp.phase() == DrillProcessor.DRILLING, "Redstone resets completion");
+            h.setBlock(new BlockPos(3, 2, 2), Blocks.AIR);
+            dp.step();
+            h.assertTrue(dp.depth() == 1, "Drilling resumes after reset");
+            dp.clear();
+            dp.set(DrillProcessor.MAX_RANGE, DrillProcessor.DRILLING, 0);
+            dp.step();
+            h.assertTrue(dp.phase() == DrillProcessor.RETRACTING, "Maximum range also starts retraction");
+            dp.clear();
+            dp.set(0, DrillProcessor.RETRACTED, 0);
+            h.setBlock(new BlockPos(2, 2, 2), drill.getBlockState().setValue(facing, Direction.DOWN));
+            h.assertTrue(dp.phase() == DrillProcessor.DRILLING, "Rotation resets completion");
+            h.succeed();
+        });
     }
 
     @GameTest(template = "empty")
@@ -187,124 +233,106 @@ public final class SteamGameTests {
     }
 
     @GameTest(template = "empty")
-    public static void drillUsesCrushingRecipesAndFallsBackToNormalDrops(GameTestHelper h) {
+    public static void drillReturnsNormalBlockDropsWithoutCrushing(GameTestHelper h) {
         var drill = place(h, "steam_drill", 3, 2, 3);
+        var dp = processor(drill, DrillProcessor.class);
         var target = new BlockPos(3, 2, 2);
-        drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
+        // Cobblestone and bricks have crushing recipes; the drill must not apply them.
         for (var block : new net.minecraft.world.level.block.Block[] {
-                Blocks.COBBLESTONE, Blocks.BRICKS, Blocks.DIRT}) {
+                Blocks.STONE, Blocks.COBBLESTONE, Blocks.BRICKS, Blocks.DIRT}) {
             h.setBlock(target, block);
-            drill.depth = 0;
-            drill.progress[0] = 0;
-            for (int slot = 4; slot < 9; slot++) drill.items.setStackInSlot(slot, ItemStack.EMPTY);
-            if (block == Blocks.DIRT)
-                h.assertTrue(h.getLevel().getRecipeManager().getRecipeFor(
-                                zone.moddev.mc.lib.common.recipes.CrushingRecipe.TYPE.get(),
-                                new net.minecraft.world.item.crafting.SingleRecipeInput(new ItemStack(block)),
-                                h.getLevel()).isEmpty(), "Fallback block has no crushing recipe");
-            int ticks = DrillOperation.breakTicks(block.defaultBlockState(), h.getLevel(), h.absolutePos(target));
-            for (int tick = 0; tick < ticks; tick++) DrillOperation.drill(drill);
-            var expected = block == Blocks.COBBLESTONE ? Items.GRAVEL
-                    : block == Blocks.BRICKS ? Items.BRICK : Items.DIRT;
-            int count = block == Blocks.BRICKS ? 4 : 1;
-            h.assertTrue(drill.items.getStackInSlot(4).is(expected)
-                            && drill.items.getStackInSlot(4).getCount() == count,
-                    "Correct crushing/fallback output for " + block);
-            h.assertTrue(drill.depth == 1 && h.getBlockState(target).is(ModContent.block("drillbit")),
+            dp.set(0, DrillProcessor.DRILLING, 0);
+            drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
+            for (int slot = 0; slot < 5; slot++) drill.items.setStackInSlot(slot, ItemStack.EMPTY);
+            int ticks = DrillProcessor.breakTicks(block.defaultBlockState(), h.getLevel(), h.absolutePos(target));
+            for (int tick = 0; tick < ticks; tick++) dp.step();
+            var expected = block == Blocks.STONE ? Items.COBBLESTONE : block.asItem();
+            h.assertTrue(drill.items.getStackInSlot(0).is(expected)
+                            && drill.items.getStackInSlot(0).getCount() == 1,
+                    "Normal block drop for " + block);
+            h.assertTrue(dp.depth() == 1 && h.getBlockState(target).is(ModContent.block("drillbit")),
                     "Mining replaces the block with one drill segment");
-            for (int slot = 5; slot < 9; slot++)
-                h.assertTrue(drill.items.getStackInSlot(slot).isEmpty(), "No extra normal drops");
+            for (int slot = 1; slot < 5; slot++)
+                h.assertTrue(drill.items.getStackInSlot(slot).isEmpty(), "No extra drops");
         }
         h.succeed();
     }
 
     @GameTest(template = "empty")
-    public static void drillWaitsForCompleteCrushingOutputCapacity(GameTestHelper h) {
+    public static void drillWaitsForOutputCapacity(GameTestHelper h) {
         var drill = place(h, "steam_drill", 3, 2, 3);
+        var dp = processor(drill, DrillProcessor.class);
         var target = new BlockPos(3, 2, 2);
-        h.setBlock(target, Blocks.BRICKS);
+        h.setBlock(target, Blocks.COBBLESTONE);
         h.setBlock(new BlockPos(3, 2, 1), Blocks.BEDROCK);
         drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
-        for (int slot = 4; slot < 9; slot++)
+        for (int slot = 0; slot < 5; slot++)
             drill.items.setStackInSlot(slot, new ItemStack(Items.DIAMOND, 64));
-        drill.items.setStackInSlot(4, new ItemStack(Items.BRICK, 63));
-        for (int tick = 0; tick < 20; tick++) DrillOperation.drill(drill);
-        h.assertTrue(h.getBlockState(target).is(Blocks.BRICKS) && drill.depth == 0
-                        && drill.progress[0] == 0 && drill.fluids.tank(0).getFluidAmount() == 5000,
+        for (int tick = 0; tick < 30; tick++) dp.step();
+        h.assertTrue(h.getBlockState(target).is(Blocks.COBBLESTONE) && dp.depth() == 0
+                        && dp.progress() == 0 && drill.fluids.tank(0).getFluidAmount() == 5000,
                 "Full output preserves target, depth, progress and steam");
-        drill.items.setStackInSlot(5, new ItemStack(Items.BRICK, 62));
-        DrillOperation.drill(drill);
-        h.assertTrue(drill.items.getStackInSlot(4).getCount() == 63
-                        && drill.items.getStackInSlot(5).getCount() == 62
-                        && drill.fluids.tank(0).getFluidAmount() == 5000,
-                "Three spaces cannot partially accept a four-brick recipe");
-        drill.items.setStackInSlot(5, new ItemStack(Items.BRICK, 61));
-        int ticks = DrillOperation.breakTicks(Blocks.BRICKS.defaultBlockState(), h.getLevel(), h.absolutePos(target));
-        for (int tick = 0; tick < ticks; tick++) DrillOperation.drill(drill);
-        h.assertTrue(drill.items.getStackInSlot(4).getCount() == 64
-                        && drill.items.getStackInSlot(5).getCount() == 64 && drill.depth == 1,
-                "Mining resumes and distributes the complete recipe across output slots");
-        for (int tick = 0; tick < 8; tick++) DrillOperation.drill(drill);
-        h.assertTrue(drill.items.getStackInSlot(4).getCount() == 64
-                        && drill.items.getStackInSlot(5).getCount() == 64,
-                "Subsequent ticks do not duplicate crushing output");
+        drill.items.setStackInSlot(2, new ItemStack(Items.COBBLESTONE, 63));
+        int ticks = DrillProcessor.breakTicks(Blocks.COBBLESTONE.defaultBlockState(), h.getLevel(), h.absolutePos(target));
+        for (int tick = 0; tick < ticks; tick++) dp.step();
+        h.assertTrue(drill.items.getStackInSlot(2).getCount() == 64 && dp.depth() == 1,
+                "Mining resumes once there is room");
+        for (int tick = 0; tick < 8; tick++) dp.step();
+        h.assertTrue(drill.items.getStackInSlot(2).getCount() == 64,
+                "Subsequent ticks do not duplicate output");
         h.succeed();
     }
 
-    private static void setComparatorSource(SteamMachine m, int fraction) {
-        switch (m.kind) {
-            case "steam_elevator" -> m.raised = fraction > 0;
-            case "steam_boiler_geothermal" -> m.temperature = 1000 * fraction;
-            case "steam_boiler_electric" -> m.energy.setStored(m.energy.capacity() * fraction / 2);
-            case "steam_drill", "steam_furnace", "steam_crusher", "steam_boiler_coal" -> {
-                int first = m.kind.equals("steam_drill") ? 4 : m.kind.equals("steam_furnace") ? 1 : 0;
-                int end = m.kind.equals("steam_drill") ? 9 : m.kind.equals("steam_furnace") ? 4 : 1;
-                for (int slot = first; slot < end; slot++)
-                    m.items.setStackInSlot(slot, fraction == 0 ? ItemStack.EMPTY
-                            : new ItemStack(Items.COAL, fraction * 32));
-            }
-            default -> {
-                int tank = m.kind.equals("steam_boiler_oil") ? m.fuel
-                        : m.kind.equals("steam_pump") ? m.product
-                        : m.kind.equals("steam_still") ? m.water : m.steam;
-                var fluid = m.kind.equals("steam_boiler_oil") ? Fluids.LAVA
-                        : m.kind.equals("steam_pump") || m.kind.equals("steam_still") ? Fluids.WATER
-                        : zone.moddev.mc.poweradvantage.init.Fluids.STEAM.get();
-                m.fluids.tank(tank).drain(Integer.MAX_VALUE, FluidAction.EXECUTE);
-                if (fraction > 0) m.fluids.tank(tank).fill(
-                        new FluidStack(fluid, m.fluids.tank(tank).getCapacity() * fraction / 2),
-                        FluidAction.EXECUTE);
-            }
-        }
-    }
 
     @GameTest(template = "empty")
-    public static void machineComparatorSourcesAndScaling(GameTestHelper h) {
-        var pos = new BlockPos(2, 2, 2);
+    public static void comparatorReadingsIgnoreUnrelatedStorage(GameTestHelper h) {
+        // Machines whose reading is not their steam tank ignore steam fullness.
         for (String kind : ModContent.MACHINES) {
-            h.setBlock(pos, Blocks.AIR);
+            if (kind.equals("steam_tank") || kind.equals("steam_switch"))
+                continue;
+            h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
             var m = place(h, kind, 2, 2, 2);
-            for (int fraction = 0; fraction <= 2; fraction++) {
-                setComparatorSource(m, fraction);
-                int expected = kind.equals("steam_elevator") ? (fraction == 0 ? 0 : 15)
-                        : fraction == 0 ? 0 : fraction == 1 ? 7 : 15;
-                h.assertTrue(m.getBlockState().getAnalogOutputSignal(h.getLevel(), m.getBlockPos()) == expected,
-                        kind + " comparator fraction " + fraction + " expected " + expected);
-            }
-            setComparatorSource(m, 0);
-            if (!kind.equals("steam_tank") && !kind.equals("steam_switch")) {
-                m.fluids.tank(m.steam).fill(steam(m.getSteamCapacity()), FluidAction.EXECUTE);
-                h.assertTrue(m.comparatorSignal() == 0, kind + " ignores unrelated steam fullness");
-            }
+            m.fluids.tank(0).fill(steam(m.fluids.tank(0).getCapacity()), FluidAction.EXECUTE);
+            var reading = processor(m, SteamProcessor.class).redstoneOutputs().getFirst().signal();
+            h.assertTrue(reading.getAsInt() == 0, kind + " ignores unrelated steam fullness");
         }
+        h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
         var drill = place(h, "steam_drill", 2, 2, 2);
-        drill.items.setStackInSlot(4, new ItemStack(Items.WATER_BUCKET));
-        h.assertTrue(drill.comparatorSignal() == 3, "Nonstackable item fills one of five drill slots");
-        drill.items.setStackInSlot(4, new ItemStack(Items.ENDER_PEARL, 8));
-        h.assertTrue(drill.comparatorSignal() == 1, "Sixteen-stack item fullness is normalized");
-        drill.items.setStackInSlot(4, new ItemStack(Items.COAL));
-        h.assertTrue(drill.comparatorSignal() == 1, "Nonempty inventory has a minimum signal of one");
+        var reading = processor(drill, DrillProcessor.class).redstoneOutputs().getFirst().signal();
+        drill.items.setStackInSlot(0, new ItemStack(Items.WATER_BUCKET));
+        h.assertTrue(reading.getAsInt() == 3, "Nonstackable item fills one of five drill slots");
+        drill.items.setStackInSlot(0, new ItemStack(Items.ENDER_PEARL, 8));
+        h.assertTrue(reading.getAsInt() == 1, "Sixteen-stack item fullness is normalized");
+        drill.items.setStackInSlot(0, new ItemStack(Items.COAL));
+        h.assertTrue(reading.getAsInt() == 1, "Nonempty inventory has a minimum signal of one");
         h.succeed();
+    }
+
+    /** MMDLib samples an XML machine's comparator source once per tick, so step a tick apart. */
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void xmlComparatorScaling(GameTestHelper h) {
+        verifyXmlScaling(h, ModContent.MACHINES.stream().sorted().toList(), 0, 0);
+    }
+    private static void verifyXmlScaling(
+            GameTestHelper h, java.util.List<String> kinds, int index, int fraction) {
+        if (index == kinds.size()) { h.succeed(); return; }
+        String kind = kinds.get(index);
+        if (fraction == 0) h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
+        var x = fraction == 0 ? place(h, kind, 2, 2, 2)
+                : (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
+                          h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(2, 2, 2)));
+        // Hold processing so a tank does not empty itself into the test structure.
+        h.setBlock(new BlockPos(2, 3, 2), Blocks.REDSTONE_BLOCK);
+        setXmlComparatorSource(x, fraction);
+        h.runAfterDelay(2, () -> {
+            int expected = kind.equals("steam_elevator") ? (fraction == 0 ? 0 : 15)
+                    : fraction == 0 ? 0 : fraction == 1 ? 7 : 15;
+            h.assertTrue(x.getBlockState().getAnalogOutputSignal(h.getLevel(), x.getBlockPos())
+                                 == expected,
+                    kind + " comparator fraction " + fraction + " expected " + expected);
+            if (fraction < 2) verifyXmlScaling(h, kinds, index, fraction + 1);
+            else verifyXmlScaling(h, kinds, index + 1, 0);
+        });
     }
 
     @GameTest(template = "empty", timeoutTicks = 200)
@@ -318,26 +346,26 @@ public final class SteamGameTests {
         var comparatorPos = new BlockPos(3, 2, 2);
         h.setBlock(comparatorPos, Blocks.AIR);
         h.setBlock(machinePos, Blocks.AIR);
-        var m = place(h, ModContent.MACHINES.get(index), 2, 2, 2);
-        h.setBlock(machinePos.above(), Blocks.REDSTONE_BLOCK); // Pause processing without powering the comparator.
-        h.setBlock(comparatorPos.below(), Blocks.STONE);
-        h.setBlock(comparatorPos, Blocks.COMPARATOR.defaultBlockState().setValue(
-                net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING,
-                Direction.WEST));
-        setComparatorSource(m, 2);
-        h.runAfterDelay(4, () -> {
-            var comparator = (net.minecraft.world.level.block.entity.ComparatorBlockEntity)
-                    h.getLevel().getBlockEntity(h.absolutePos(comparatorPos));
-            h.assertTrue(comparator.getOutputSignal() == 15, m.kind + " comparator rises to 15");
-            // A raw stack mutation bypasses onChange, as some machine operations do.
-            if (m.kind.equals("steam_boiler_coal") || m.kind.equals("steam_crusher"))
-                m.items.getStackInSlot(0).shrink(64);
-            else setComparatorSource(m, 0);
+        String kind = ModContent.MACHINES.get(index);
+        var x = place(h, kind, 2, 2, 2);
+        {
+            h.setBlock(machinePos.above(), Blocks.REDSTONE_BLOCK);
+            h.setBlock(comparatorPos.below(), Blocks.STONE);
+            h.setBlock(comparatorPos, Blocks.COMPARATOR.defaultBlockState().setValue(
+                    net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING,
+                    Direction.WEST));
+            setXmlComparatorSource(x, 2);
             h.runAfterDelay(4, () -> {
-                h.assertTrue(comparator.getOutputSignal() == 0, m.kind + " comparator falls to zero");
-                verifyComparatorUpdate(h, index + 1);
+                var comparator = (net.minecraft.world.level.block.entity.ComparatorBlockEntity)
+                        h.getLevel().getBlockEntity(h.absolutePos(comparatorPos));
+                h.assertTrue(comparator.getOutputSignal() == 15, kind + " comparator rises to 15");
+                setXmlComparatorSource(x, 0);
+                h.runAfterDelay(4, () -> {
+                    h.assertTrue(comparator.getOutputSignal() == 0, kind + " comparator falls to zero");
+                    verifyComparatorUpdate(h, index + 1);
+                });
             });
-        });
+        }
     }
 
     /** Temporary tag membership exercises datapack integration without shipping test tag entries. */
@@ -595,18 +623,20 @@ public final class SteamGameTests {
         h.assertTrue(tank.fluids.fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE) == 0,
                 "Steam-only filter");
         tank.fluids.fill(steam(123456), FluidAction.EXECUTE);
-        var saved = tank.saveWithoutMetadata(h.getLevel().registryAccess());
-        var restored = new SteamMachine(tank.getBlockPos(), tank.getBlockState());
-        restored.loadWithComponents(saved, h.getLevel().registryAccess());
+        var registries = h.getLevel().registryAccess();
+        var saved = tank.saveWithFullMetadata(registries);
+        var restored = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
+                net.minecraft.world.level.block.entity.BlockEntity.loadStatic(
+                        tank.getBlockPos(), tank.getBlockState(), saved, registries);
         h.assertTrue(restored.fluids.tank(0).getFluidAmount() == 123456, "Fluid persistence");
         h.succeed();
     }
     private static net.neoforged.neoforge.items.IItemHandler itemsAt(
-            GameTestHelper h, SteamMachine m, Direction side) {
+            GameTestHelper h, net.minecraft.world.level.block.entity.BlockEntity m, Direction side) {
         return h.getLevel().getCapability(Capabilities.ItemHandler.BLOCK, m.getBlockPos(), side);
     }
     private static net.neoforged.neoforge.fluids.capability.IFluidHandler fluidsAt(
-            GameTestHelper h, SteamMachine m, Direction side) {
+            GameTestHelper h, net.minecraft.world.level.block.entity.BlockEntity m, Direction side) {
         return h.getLevel().getCapability(Capabilities.FluidHandler.BLOCK, m.getBlockPos(), side);
     }
     @GameTest(template = "empty")
@@ -614,16 +644,16 @@ public final class SteamGameTests {
         var furnace = place(h, "steam_furnace", 1, 2, 1);
         var boiler = place(h, "steam_boiler_electric", 4, 2, 1);
         var tank = place(h, "steam_tank", 1, 2, 4);
-        furnace.items.setStackInSlot(4, new ItemStack(Items.IRON_INGOT, 6));
+        furnace.items.setStackInSlot(3, new ItemStack(Items.IRON_INGOT, 6));
         for (var side : Direction.values()) {
             var items = itemsAt(h, furnace, side);
-            h.assertTrue(items.insertItem(0, new ItemStack(Items.COAL), true).isEmpty(),
-                    "Fuel accepted from " + side);
-            h.assertTrue(items.insertItem(1, new ItemStack(Items.RAW_IRON), true).isEmpty(),
+            h.assertTrue(items.insertItem(0, new ItemStack(Items.RAW_IRON), true).isEmpty(),
                     "Smeltable input accepted from " + side);
-            h.assertTrue(!items.insertItem(4, new ItemStack(Items.IRON_INGOT), true).isEmpty(),
+            h.assertTrue(!items.insertItem(0, new ItemStack(Items.STICK), true).isEmpty(),
+                    "Unsmeltable input refused from " + side);
+            h.assertTrue(!items.insertItem(3, new ItemStack(Items.IRON_INGOT), true).isEmpty(),
                     "Output refuses insertion from " + side);
-            h.assertTrue(items.extractItem(4, 1, true).getCount() == 1,
+            h.assertTrue(items.extractItem(3, 1, true).getCount() == 1,
                     "Output extractable from " + side);
             var water = fluidsAt(h, boiler, side);
             h.assertTrue(water.fill(new FluidStack(Fluids.WATER, 100), FluidAction.SIMULATE) == 100,
@@ -645,9 +675,10 @@ public final class SteamGameTests {
     @GameTest(template = "empty")
     public static void automationSideConfigGatesAndPersists(GameTestHelper h) {
         var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
-        var automation = boiler.automation();
+        var automation = boiler.screenAutomation();
         var water = automation.group(automation.index("water"));
-        var facing = boiler.facing();
+        var facing = boiler.getBlockState().getValue(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING);
         water.sides().set(
                 zone.moddev.mc.lib.api.capabilities.RelativeFace.of(facing, Direction.UP),
                 zone.moddev.mc.lib.api.capabilities.IoMode.DISABLED);
@@ -657,10 +688,12 @@ public final class SteamGameTests {
         h.assertTrue(fluidsAt(h, boiler, Direction.DOWN)
                                 .fill(new FluidStack(Fluids.WATER, 100), FluidAction.SIMULATE) == 100,
                 "Other faces still accept water");
-        var saved = boiler.saveWithoutMetadata(h.getLevel().registryAccess());
-        var restored = new SteamMachine(boiler.getBlockPos(), boiler.getBlockState());
-        restored.loadWithComponents(saved, h.getLevel().registryAccess());
-        var restoredWater = restored.automation().group(restored.automation().index("water"));
+        var registries = h.getLevel().registryAccess();
+        var restored = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity) net.minecraft.world.level.block.entity.BlockEntity
+                .loadStatic(boiler.getBlockPos(), boiler.getBlockState(),
+                        boiler.saveWithFullMetadata(registries), registries);
+        var restoredWater = restored.screenAutomation().group(
+                restored.screenAutomation().index("water"));
         h.assertTrue(restoredWater.mode(Direction.UP)
                         == zone.moddev.mc.lib.api.capabilities.IoMode.DISABLED
                         && restoredWater.mode(Direction.DOWN)
@@ -673,7 +706,7 @@ public final class SteamGameTests {
         var boiler = place(h, "steam_boiler_coal", 2, 2, 2);
         var still = place(h, "steam_still", 3, 2, 2);
         still.fluids.tank(1).fill(new FluidStack(Fluids.WATER, 2000), FluidAction.EXECUTE);
-        var automation = boiler.automation();
+        var automation = boiler.screenAutomation();
         int water = automation.index("water");
         var slot = zone.moddev.mc.lib.api.automation.AutomationInventory.addonSlot(water, 0);
         var pump = new ItemStack(zone.moddev.mc.poweradvantage.init.ModItems.FLUID_INTAKE_PUMP.get());
@@ -693,32 +726,100 @@ public final class SteamGameTests {
             h.succeed();
         });
     }
+    /**
+     * Loads a save written by the shared pre-XML SteamMachine entity, captured as SNBT in
+     * data/steamadvantage/legacy_saves (see that folder's README), into the machine's XML entity.
+     */
+    private static zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity importLegacy(
+            GameTestHelper h, String kind) {
+        var registries = h.getLevel().registryAccess();
+        var placed = place(h, kind, 2, 2, 2);
+        net.minecraft.nbt.CompoundTag saved;
+        try (var in = SteamGameTests.class.getResourceAsStream(
+                "/data/steamadvantage/legacy_saves/" + kind + ".snbt")) {
+            saved = net.minecraft.nbt.NbtUtils.snbtToStructure(
+                    new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception failure) {
+            throw new IllegalStateException("Missing legacy fixture " + kind, failure);
+        }
+        h.assertTrue(saved.contains("TotalBurn"), kind + " fixture is a pre-XML save");
+        var imported = (zone.moddev.mc.lib.machine.neoforge.DefinedMachineEntity)
+                net.minecraft.world.level.block.entity.BlockEntity.loadStatic(
+                        placed.getBlockPos(), placed.getBlockState(), saved, registries);
+        h.assertTrue(imported != null, kind + " imports a pre-XML save");
+        var resaved = imported.saveWithFullMetadata(registries);
+        h.assertTrue(!resaved.contains("TotalBurn") && !resaved.contains("Burn")
+                        && !resaved.contains("Energy"),
+                kind + " saves in the current format");
+        h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
+        return imported;
+    }
     @GameTest(template = "empty")
-    public static void legacySaveLayoutLoads(GameTestHelper h) {
-        // SA3 before the BaseMachine move saved every storage at the top level, energy as "Energy".
-        var boiler = place(h, "steam_boiler_electric", 2, 2, 2);
-        boiler.fluids.fill(new FluidStack(Fluids.WATER, 777), FluidAction.EXECUTE);
-        boiler.energy.setStored(1234);
-        boiler.burn = 17;
-        var saved = boiler.saveWithoutMetadata(h.getLevel().registryAccess());
-        h.assertTrue(saved.contains("energy") && saved.contains("Items") && saved.contains("Fluids"),
-                "Current layout keeps Items/Fluids and uses MMDLib's energy key");
-        saved.put("Energy", saved.get("energy"));
-        saved.remove("energy");
-        saved.remove("automation");
-        saved.remove("features");
-        var restored = new SteamMachine(boiler.getBlockPos(), boiler.getBlockState());
-        restored.loadWithComponents(saved, h.getLevel().registryAccess());
-        h.assertTrue(restored.energy.stored() == 1234, "Legacy Energy key is migrated");
-        h.assertTrue(restored.fluids.tank(1).getFluidAmount() == 777, "Legacy fluids load");
-        h.assertTrue(restored.burn == 17, "Top-level machine state loads");
+    public static void preXmlMachineSavesLoad(GameTestHelper h) {
+        var coal = importLegacy(h, "steam_boiler_coal");
+        var burner = processor(coal, CoalBoilerProcessor.class);
+        h.assertTrue(coal.items.getStackInSlot(0).getCount() == 5, "Coal stays in the fuel slot");
+        h.assertTrue(coal.fluids.tank(1).getFluidAmount() == 777, "Water stays in tank 1");
+        h.assertTrue(burner.burnTime() == 17 && burner.totalBurnTime() == 1600, "Burn timer imported");
+
+        var electric = importLegacy(h, "steam_boiler_electric");
+        h.assertTrue(electric.energy.stored() == 1234, "Legacy Energy key is imported");
+
+        var oil = importLegacy(h, "steam_boiler_oil");
+        h.assertTrue(oil.fluids.tank(2).getFluidAmount() == 900
+                        && processor(oil, OilBoilerProcessor.class).burnTime() == 40,
+                "Oil fuel tank and burn timer imported");
+
+        var geo = importLegacy(h, "steam_boiler_geothermal");
+        h.assertTrue(processor(geo, GeothermalBoilerProcessor.class).temperature() == 640,
+                "Geothermal temperature imported");
+
+        var elevator = importLegacy(h, "steam_elevator");
+        h.assertTrue(processor(elevator, ElevatorProcessor.class).raised(), "Raised state imported");
+
+        var still = importLegacy(h, "steam_still");
+        var batch = processor(still, StillProcessor.class);
+        h.assertTrue(still.fluids.tank(2).getFluidAmount() == 300, "Still input stays in tank 2");
+        h.assertTrue(batch.pending().getFluid() == Fluids.LAVA && batch.pending().getAmount() == 100
+                        && batch.progress() == 7 && batch.duration() == 20,
+                "Pending distillation batch imported");
+
+        var pump = importLegacy(h, "steam_pump");
+        h.assertTrue(pump.fluids.tank(1).getFluidAmount() == 2000, "Pumped fluid stays in tank 1");
+
+        var crusher = importLegacy(h, "steam_crusher");
+        h.assertTrue(crusher.items.getStackInSlot(0).getCount() == 3
+                        && crusher.items.getStackInSlot(1).is(Items.GRAVEL)
+                        && crusher.items.getStackInSlot(1).getCount() == 4
+                        && crusher.fluids.tank(0).getFluidAmount() == 5000,
+                "Crusher input, output (slot 4 to 1) and steam imported");
+
+        var furnace = importLegacy(h, "steam_furnace");
+        h.assertTrue(furnace.items.getStackInSlot(0).is(Items.RAW_IRON)
+                        && furnace.items.getStackInSlot(1).getCount() == 2
+                        && furnace.items.getStackInSlot(3).getCount() == 3
+                        && furnace.fluids.tank(0).getFluidAmount() == 6000,
+                "Furnace lanes (inputs 1-3 to 0-2, outputs 4-6 to 3-5) and steam imported");
+        h.assertTrue(furnace.items.recoveryContents().stream().anyMatch(
+                        entry -> ((net.minecraft.nbt.CompoundTag) entry).getString("id")
+                                .equals("minecraft:coal")),
+                "The retired fuel slot's coal is kept for recovery");
+
+        var drill = importLegacy(h, "steam_drill");
+        var bore = processor(drill, DrillProcessor.class);
+        h.assertTrue(drill.items.getStackInSlot(0).getCount() == 12
+                        && drill.items.getStackInSlot(4).is(Items.FLINT),
+                "Drill output slots 4-8 move to 0-4");
+        h.assertTrue(bore.depth() == 9 && bore.phase() == DrillProcessor.RETRACTING
+                        && bore.progress() == 5,
+                "Drill depth, phase and progress imported");
         h.succeed();
     }
     @GameTest(template = "empty")
     public static void brokenMachineDropsItemsOnce(GameTestHelper h) {
         var crusher = place(h, "steam_crusher", 2, 2, 2);
         crusher.items.setStackInSlot(0, new ItemStack(Items.COBBLESTONE, 5));
-        crusher.items.setStackInSlot(4, new ItemStack(Items.GRAVEL, 3));
+        crusher.items.setStackInSlot(1, new ItemStack(Items.GRAVEL, 3));
         h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
         var area = new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(2, 2, 2))).inflate(2);
         var drops = h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area);
@@ -796,7 +897,7 @@ public final class SteamGameTests {
         crusher.items.setStackInSlot(0, new ItemStack(Items.COBBLESTONE));
         h.runAfterDelay(130, () -> {
             h.assertTrue(crusher.items.getStackInSlot(0).isEmpty(), "Crushing consumes input");
-            h.assertTrue(crusher.items.getStackInSlot(4).is(Items.GRAVEL),
+            h.assertTrue(crusher.items.getStackInSlot(1).is(Items.GRAVEL),
                     "Library recipe produced gravel");
             h.assertTrue(crusher.fluids.tank(0).getFluidAmount() == 1250,
                     "Crushing spends 125 x 150 mB");
@@ -807,14 +908,17 @@ public final class SteamGameTests {
     public static void drillMovesAlongTrackWithoutLosingInventory(GameTestHelper h) {
         var drill = place(h, "steam_drill", 3, 2, 3);
         drill.fluids.fill(steam(5000), FluidAction.EXECUTE);
-        drill.items.setStackInSlot(4, new ItemStack(Items.DIAMOND, 3));
+        drill.items.setStackInSlot(0, new ItemStack(Items.DIAMOND, 3));
         h.setBlock(new BlockPos(3, 2, 2), Blocks.BEDROCK);
         h.setBlock(new BlockPos(4, 2, 3), ModContent.block("steam_track"));
         h.runAfterDelay(5, () -> {
             var moved = h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(4, 2, 3)));
-            h.assertTrue(moved instanceof SteamMachine, "Drill follows track");
-            h.assertTrue(((SteamMachine) moved).items.getStackInSlot(4).getCount() == 3,
+            h.assertTrue(moved instanceof SteamMachineEntity, "Drill follows track");
+            h.assertTrue(((SteamMachineEntity) moved).items.getStackInSlot(0).getCount() == 3,
                     "Drill preserves inventory");
+            h.assertTrue(h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                            new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(3, 2, 3))).inflate(2))
+                            .isEmpty(), "Moving drops nothing");
             h.assertTrue(h.getBlockState(new BlockPos(3, 2, 3)).is(ModContent.block("steam_pipe")),
                     "Drill leaves steam pipe");
             h.succeed();
@@ -824,13 +928,15 @@ public final class SteamGameTests {
     public static void drillBreaksBlocksAtDiamondPickaxeSpeed(GameTestHelper h) {
         var level = h.getLevel();
         var p = h.absolutePos(BlockPos.ZERO);
-        // Vanilla diamond pickaxe ticks: stone 1.5*30/8, dirt (wrong tool) 0.5*30/1, obsidian 50*30/8.
-        h.assertTrue(DrillOperation.breakTicks(Blocks.STONE.defaultBlockState(), level, p) == 6,
-                "Stone breaks in 6 ticks");
-        h.assertTrue(DrillOperation.breakTicks(Blocks.DIRT.defaultBlockState(), level, p) == 15,
-                "Dirt breaks in 15 ticks");
-        h.assertTrue(DrillOperation.breakTicks(Blocks.OBSIDIAN.defaultBlockState(), level, p) == 188,
-                "Obsidian breaks in 188 ticks");
+        // SA2 timing at the default 12 ticks per hardness, minimum 6.
+        h.assertTrue(DrillProcessor.breakTicks(Blocks.STONE.defaultBlockState(), level, p) == 18,
+                "Stone breaks in 18 ticks");
+        h.assertTrue(DrillProcessor.breakTicks(Blocks.DIRT.defaultBlockState(), level, p) == 6,
+                "Dirt breaks in 6 ticks");
+        h.assertTrue(DrillProcessor.breakTicks(Blocks.IRON_ORE.defaultBlockState(), level, p) == 36,
+                "Iron ore breaks in 36 ticks");
+        h.assertTrue(DrillProcessor.breakTicks(Blocks.OBSIDIAN.defaultBlockState(), level, p) == 600,
+                "Obsidian breaks in 600 ticks");
         h.succeed();
     }
     @GameTest(template = "empty", timeoutTicks = 80)
@@ -841,7 +947,7 @@ public final class SteamGameTests {
         h.runAfterDelay(5, () -> {
             h.assertTrue(h.getBlockState(new BlockPos(3, 2, 2)).is(ModContent.block("drillbit")),
                     "Starved drill keeps its pipe extended");
-            h.assertTrue(drill.getDrillDepth() == 1, "Starved drill keeps its depth");
+            h.assertTrue(SteamScreens.drillDepth(drill) == 1, "Starved drill keeps its depth");
             h.succeed();
         });
     }
@@ -861,6 +967,19 @@ public final class SteamGameTests {
             });
         });
     }
+    /** Pre-XML tanks and switches keep their steam. */
+    @GameTest(template = "empty")
+    public static void preXmlTankAndSwitchSavesLoad(GameTestHelper h) {
+        for (String kind : java.util.List.of("steam_tank", "steam_switch")) {
+            var imported = importLegacy(h, kind);
+            h.assertTrue(imported.fluids.tank(0).getFluidAmount() == 4321
+                                 && imported.fluids.tank(0).getFluid().getFluid()
+                                         == zone.moddev.mc.poweradvantage.init.Fluids.STEAM.get(),
+                    kind + " keeps its pre-XML steam");
+        }
+        h.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void valveStopsOutputWhenPowered(GameTestHelper h) {
         var valve = place(h, "steam_switch", 3, 2, 3);
@@ -909,14 +1028,15 @@ public final class SteamGameTests {
                     "Running still melts snow above it");
             h.assertTrue(still.fluids.tank(2).isEmpty(), "Input is consumed when operation starts");
             h.assertTrue(still.fluids.tank(1).isEmpty(), "Output waits for recipe duration");
-            h.assertTrue(still.getProgress() == 1 && still.getProgressMax() == 100,
+            h.assertTrue(zone.moddev.mc.SteamAdvantage.machines.SteamScreens.distillProgress(still) == 1
+                            && zone.moddev.mc.SteamAdvantage.machines.SteamScreens.distillDuration(still) == 100,
                     "PA3 recipe duration drives progress");
             h.runAfterDelay(99, () -> {
                 h.assertTrue(still.fluids.tank(1).getFluidAmount() == 50
                                 && still.fluids.tank(1).getFluid().getFluid() == refinedOil,
                         "PA3's built-in recipe converts crude oil to refined oil");
                 h.assertTrue(still.fluids.tank(0).isEmpty(), "Steam is charged once per operation");
-                h.assertTrue(still.getProgress() == 0, "Completed operation clears progress");
+                h.assertTrue(SteamScreens.distillProgress(still) == 0, "Completed operation clears progress");
                 h.succeed();
             });
         });
@@ -928,10 +1048,11 @@ public final class SteamGameTests {
         still.fluids.tank(0).fill(steam(150), FluidAction.EXECUTE);
         still.fluids.tank(2).fill(new FluidStack(Fluids.WATER, 1000), FluidAction.EXECUTE);
         h.runAfterDelay(10, () -> {
-            h.assertTrue(still.getProgress() == 10 && still.getProgressMax() == 20,
+            h.assertTrue(SteamScreens.distillProgress(still) == 10
+                            && SteamScreens.distillDuration(still) == 20,
                     "Timed recipe accumulates progress");
             h.assertTrue(still.fluids.tank(2).isEmpty()
-                            && still.pendingDistillation.getAmount() == 100,
+                            && processor(still, StillProcessor.class).pending().getAmount() == 100,
                     "Input and pending output persist during processing");
             var saved = still.saveWithoutMetadata(h.getLevel().registryAccess());
             still.loadWithComponents(saved, h.getLevel().registryAccess());
@@ -939,7 +1060,7 @@ public final class SteamGameTests {
                 h.assertTrue(still.fluids.tank(1).getFluidAmount() == 100
                                 && still.fluids.tank(1).getFluid().getFluid() == Fluids.LAVA,
                         "Saved operation completes after the remaining duration");
-                h.assertTrue(still.pendingDistillation.isEmpty(), "Completed output is cleared");
+                h.assertTrue(processor(still, StillProcessor.class).pending().isEmpty(), "Completed output is cleared");
                 h.succeed();
             });
         });
@@ -956,7 +1077,7 @@ public final class SteamGameTests {
                     "Blocked output preserves steam");
             h.assertTrue(still.fluids.tank(2).getFluidAmount() == 1000,
                     "Blocked output preserves input");
-            h.assertTrue(still.pendingDistillation.isEmpty(),
+            h.assertTrue(processor(still, StillProcessor.class).pending().isEmpty(),
                     "Blocked output does not start an operation");
             h.succeed();
         });
@@ -981,44 +1102,27 @@ public final class SteamGameTests {
     public static void furnaceProcessesThreeLanes(GameTestHelper h) {
         var furnace = place(h, "steam_furnace", 2, 2, 2);
         furnace.fluids.fill(steam(20000), FluidAction.EXECUTE);
-        furnace.items.setStackInSlot(0, new ItemStack(Items.COAL));
-        furnace.items.setStackInSlot(1, new ItemStack(Items.RAW_IRON));
-        furnace.items.setStackInSlot(2, new ItemStack(Items.RAW_GOLD));
-        furnace.items.setStackInSlot(3, new ItemStack(Items.RAW_COPPER));
+        furnace.items.setStackInSlot(0, new ItemStack(Items.RAW_IRON));
+        furnace.items.setStackInSlot(1, new ItemStack(Items.RAW_GOLD));
+        furnace.items.setStackInSlot(2, new ItemStack(Items.RAW_COPPER));
         h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
-        h.runAfterDelay(500, () -> {
-            h.assertTrue(furnace.items.getStackInSlot(4).is(Items.IRON_INGOT), "Furnace iron lane");
-            h.assertTrue(furnace.items.getStackInSlot(5).is(Items.GOLD_INGOT), "Furnace gold lane");
+        h.runAfterDelay(20, () -> h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
+                "Running furnace melts snow above it"));
+        h.runAfterDelay(260, () -> {
+            h.assertTrue(furnace.items.getStackInSlot(3).is(Items.IRON_INGOT), "Furnace iron lane");
+            h.assertTrue(furnace.items.getStackInSlot(4).is(Items.GOLD_INGOT), "Furnace gold lane");
             h.assertTrue(
-                    furnace.items.getStackInSlot(6).is(Items.COPPER_INGOT), "Furnace copper lane");
-            h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
-                    "Running furnace melts snow above it");
+                    furnace.items.getStackInSlot(5).is(Items.COPPER_INGOT), "Furnace copper lane");
+            h.assertTrue(furnace.fluids.tank(0).getFluidAmount() == 20000 - 3 * 2000,
+                    "Each 200-tick smelt costs 2000 mB of steam");
             h.succeed();
-        });
-    }
-    @GameTest(template = "empty", timeoutTicks = 40)
-    public static void hotIdleFurnaceStillMeltsSnow(GameTestHelper h) {
-        var furnace = place(h, "steam_furnace", 2, 2, 2);
-        furnace.temperature = 1500;
-        h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
-        h.runAfterDelay(1, () -> {
-            h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
-                    "Furnace without fuel melts snow while it is still hot");
-            furnace.temperature = 50;
-            h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
-            h.runAfterDelay(1, () -> {
-                h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).is(Blocks.SNOW),
-                        "Cool furnace does not melt snow");
-                h.succeed();
-            });
         });
     }
     @GameTest(template = "empty", timeoutTicks = 40)
     public static void fullGeothermalBoilerStillMeltsSnow(GameTestHelper h) {
         var geo = place(h, "steam_boiler_geothermal", 2, 2, 2);
-        geo.fluids.tank(geo.steam).fill(steam(geo.fluids.tank(geo.steam).getCapacity()),
-                FluidAction.EXECUTE);
-        geo.temperature = 500;
+        geo.fluids.tank(0).fill(steam(geo.fluids.tank(0).getCapacity()), FluidAction.EXECUTE);
+        processor(geo, GeothermalBoilerProcessor.class).setTemperature(500);
         h.setBlock(new BlockPos(2, 3, 2), Blocks.SNOW);
         h.runAfterDelay(1, () -> {
             h.assertTrue(h.getBlockState(new BlockPos(2, 3, 2)).isAir(),
@@ -1026,25 +1130,30 @@ public final class SteamGameTests {
             h.succeed();
         });
     }
-    @GameTest(template = "empty", timeoutTicks = 40)
-    public static void furnaceCoolingClearsResidualTemperature(GameTestHelper h) {
-        var furnace = place(h, "steam_furnace", 2, 2, 2);
-        furnace.temperature = 0.005f;
-        FurnaceOperation.smelt(furnace);
-        h.assertTrue(furnace.getTemperature() == 0,
-                "Cooling snaps negligible residual temperature to zero");
-        h.assertTrue(Float.isFinite(furnace.getTemperature()),
-                "Furnace temperature remains finite");
-        h.succeed();
+    /** Recipe-driven machines hold their work while powered, like every SteamAdvantage machine. */
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void poweredCrusherHoldsItsRecipe(GameTestHelper h) {
+        var crusher = place(h, "steam_crusher", 2, 2, 2);
+        h.setBlock(new BlockPos(3, 2, 2), Blocks.REDSTONE_BLOCK);
+        crusher.fluids.fill(steam(20000), FluidAction.EXECUTE);
+        crusher.items.setStackInSlot(0, new ItemStack(Items.COBBLESTONE));
+        h.runAfterDelay(20, () -> {
+            h.assertTrue(crusher.fluids.tank(0).getFluidAmount() == 20000
+                            && crusher.items.getStackInSlot(0).getCount() == 1
+                            && crusher.items.getStackInSlot(1).isEmpty(),
+                    "Powered crusher does not work");
+            h.succeed();
+        });
     }
     @GameTest(template = "empty", timeoutTicks = 40)
     public static void fullCrusherOutputDoesNotConsumeResources(GameTestHelper h) {
         var crusher = place(h, "steam_crusher", 2, 2, 2);
-        crusher.fluids.fill(steam(1000), FluidAction.EXECUTE);
+        crusher.fluids.fill(steam(20000), FluidAction.EXECUTE);
         crusher.items.setStackInSlot(0, new ItemStack(Items.COBBLESTONE));
-        crusher.items.setStackInSlot(4, new ItemStack(Items.GRAVEL, 64));
+        for (int slot = 1; slot <= 5; slot++)
+            crusher.items.setStackInSlot(slot, new ItemStack(Items.DIAMOND, 64));
         h.runAfterDelay(10, () -> {
-            h.assertTrue(crusher.fluids.tank(0).getFluidAmount() == 1000,
+            h.assertTrue(crusher.fluids.tank(0).getFluidAmount() == 20000,
                     "Blocked output preserves steam");
             h.assertTrue(crusher.items.getStackInSlot(0).getCount() == 1,
                     "Blocked output preserves input");
@@ -1052,35 +1161,21 @@ public final class SteamGameTests {
         });
     }
 
+    /**
+     * A test-only machine (gameTest resources, excluded from releases) extends the steam tank in
+     * XML alone, changing its capacity, and gets its own block, entity and processor.
+     */
     @GameTest(template = "empty")
-    public static void standaloneVariantNeedsNoJavaRegistration(GameTestHelper h) {
+    public static void xmlVariantNeedsNoJavaRegistration(GameTestHelper h) {
         var variant = place(h, "test_large_steam_tank", 2, 2, 2);
-        h.assertTrue(variant.getSteamCapacity() == 2345678, "MMDLib decoded variant capacity");
-        h.assertTrue(variant.items().getSlots() == 12, "MMDLib decoded variant inventory size");
+        h.assertTrue(variant.fluids.tank(0).getCapacity() == 2345678, "Inherited tank resized");
         h.assertTrue(net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE
                              .getKey(variant.getType())
                              .equals(ModContent.id("test_large_steam_tank")),
-                "Standalone block entity has its own ID");
-        h.assertTrue(zone.moddev.mc.lib.MMDLib.standaloneBlocks().containsKey(
-                             ModContent.id("test_large_steam_tank")),
-                "Variant came through MMDLib's standalone loader");
-        h.assertTrue(!zone.moddev.mc.lib.MMDLib.loadedMaterials().keySet().stream().anyMatch(
-                             id -> id.getNamespace().equals(SteamAdvantage.MODID)),
-                "No synthetic SteamAdvantage materials");
-        variant.fluids().fill(steam(1234567), FluidAction.EXECUTE);
-        var bound = zone.moddev.mc.lib.gui.Screens
-                            .get(net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE
-                                            .getKey(variant.getType()))
-                            .orElseThrow();
-        var element = bound.screen().find("steam").orElseThrow();
-        try {
-            var fluid = (FluidStack) bound.values().get(element).read(variant);
-            var capacity = (Number) bound.maxima().get(element).read(variant);
-            h.assertTrue(fluid.getAmount() == 1234567 && capacity.intValue() == 2345678,
-                    "XML getters bind to variant storage");
-        } catch (Throwable failure) {
-            throw new IllegalStateException("Bound XML getter failed", failure);
-        }
+                "Variant block entity has its own ID");
+        h.assertTrue(variant.features.allProcessors().stream()
+                             .anyMatch(SteamTankProcessor.class::isInstance),
+                "Variant inherits the tank processor");
         h.succeed();
     }
     @GameTest(template = "empty")
@@ -1107,33 +1202,28 @@ public final class SteamGameTests {
     }
 
     @GameTest(template = "empty")
-    public static void declarativeMenuRespectsHiddenSlotsAndRoles(GameTestHelper h) {
+    public static void declarativeMenuRespectsSlotRoles(GameTestHelper h) {
         var crusher = place(h, "steam_crusher", 2, 2, 2);
         var player = h.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
         player.setPos(crusher.getBlockPos().getX() + .5, crusher.getBlockPos().getY() + .5,
                 crusher.getBlockPos().getZ() + .5);
         var menu =
                 new zone.moddev.mc.lib.gui.runtime.MachineMenu(1, player.getInventory(), crusher);
-        h.assertTrue(menu.slots.get(0).isActive() && menu.slots.get(4).isActive(),
+        h.assertTrue(menu.slots.get(0).isActive() && menu.slots.get(1).isActive(),
                 "XML declares input/output slots");
-        h.assertTrue(!menu.slots.get(1).isActive()
-                        && !menu.slots.get(1).mayPlace(new ItemStack(Items.COBBLESTONE)),
-                "Undeclared slot refuses clicks");
-        h.assertTrue(!menu.slots.get(4).mayPlace(new ItemStack(Items.GRAVEL)),
+        h.assertTrue(!menu.slots.get(1).mayPlace(new ItemStack(Items.GRAVEL)),
                 "Output role refuses insertion");
         player.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 3));
-        // MMDLib 2.0.2 also adds armor and offhand slots, so locate hotbar slot 0 directly.
         int hotbar = menu.slots.stream()
                 .filter(slot -> slot.container == player.getInventory() && slot.getContainerSlot() == 0)
                 .findFirst().orElseThrow().index;
         menu.quickMoveStack(player, hotbar);
-        h.assertTrue(crusher.items().getStackInSlot(0).getCount() == 3,
+        h.assertTrue(crusher.items.getStackInSlot(0).getCount() == 3,
                 "Shift-click follows declared input");
-        crusher.items().setStackInSlot(4, new ItemStack(Items.GRAVEL, 2));
-        menu.quickMoveStack(player, 4);
+        crusher.items.setStackInSlot(1, new ItemStack(Items.GRAVEL, 2));
+        menu.quickMoveStack(player, 1);
         h.assertTrue(
                 player.getInventory().countItem(Items.GRAVEL) == 2, "Shift-click extracts output");
-        h.assertTrue(menu.slots.get(4).index == 4, "MMDLib preserves XML slot indices");
         h.assertTrue(menu.stillValid(player), "Nearby original host is valid");
         h.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
         h.assertTrue(!menu.stillValid(player), "Removed host invalidates menu");
@@ -1162,7 +1252,7 @@ public final class SteamGameTests {
         h.succeed();
     }
     @GameTest(template = "empty")
-    public static void mismatchedScreenAndInvalidSettingsAreRejected(GameTestHelper h) {
+    public static void mismatchedScreenIsRejected(GameTestHelper h) {
         var tank = place(h, "steam_tank", 2, 2, 2);
         var player = h.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
         var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(
@@ -1178,17 +1268,6 @@ public final class SteamGameTests {
             buffer.release();
         }
         h.assertTrue(rejected, "MMDLib rejects mismatched XML definitions");
-        var invalid = com.google.gson.JsonParser.parseString(
-                "{\"kind\":\"steam_boiler_coal\",\"steam_capacity\":1000,\"water_capacity\":0}");
-        boolean bad = false;
-        try {
-            bad = MachineSettings.CODEC.parse(com.mojang.serialization.JsonOps.INSTANCE, invalid)
-                          .error()
-                          .isPresent();
-        } catch (IllegalArgumentException expected) {
-            bad = true;
-        }
-        h.assertTrue(bad, "DFU settings reject missing mandatory storage");
         h.succeed();
     }
     @GameTest(template = "empty")

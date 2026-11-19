@@ -28,7 +28,8 @@ excluded from the release JAR.
 
 ## Content and operation
 
-MMDLib standalone definitions register all 17 legacy block IDs and four legacy item IDs under
+MMDLib XML machine definitions (the twelve machines) and standalone definitions (the other
+blocks and items) register all 17 legacy block IDs and four legacy item IDs under
 `steamadvantage`. The art and translations originate in SA2; texture paths,
 blockstates, models, enchantments, recipes, mining tags, and loot use 1.21.1 formats.
 There is a SteamAdvantage creative tab.
@@ -40,8 +41,8 @@ There is a SteamAdvantage creative tab.
 | Geothermal boiler | Gains heat beside lava or magma, boils water after reaching operating temperature |
 | Oil boiler | Burns 100 mB aliquots of tagged liquid fuel, consumes water, outputs steam |
 | Steam tank | Stores 1,000,000 mB steam; comparator reports fill level |
-| Steam furnace | Three independent vanilla smelting lanes; fuel heats the furnace, steam increases heating |
-| Rock crusher | Uses MMDLib `mmdlib:crushing` recipes; 125 processing ticks at 150 mB steam/tick |
+| Steam furnace | Three independent smelting lanes on steam alone; each smelts at the recipe's cooking time, 2000 mB steam per 200 ticks |
+| Rock crusher | Runs every MMDLib `mmdlib:crushing` recipe; 125 ticks and 18,750 mB steam per item |
 | Steam drill | Mines in its facing direction, extends a damaging drill shaft, retains drops, follows adjacent steam track at range/obstruction |
 | Steam elevator | Redstone raises the platform and passengers; removing power retracts it; 16-block search range |
 | Steam still | Runs PA3 distilling recipes with persisted progress and output |
@@ -125,7 +126,8 @@ The integration suite checks all machine registrations, capabilities, NBT
 persistence, steam filtering, boiler fuel/energy/water use, redstone behavior,
 PA3 pipe delivery, pumping conservation, crushing and blocked-output behavior,
 three furnace lanes, drill movement/inventory preservation, elevator movement,
-valve operation, distillation ratios, and musket loading/firing.
+valve operation, distillation ratios, imports of saves from before the XML machine
+port, and musket loading/firing.
 
 The development client completed resource reload and atlas creation without
 SteamAdvantage missing-model or missing-texture warnings. Actual in-world
